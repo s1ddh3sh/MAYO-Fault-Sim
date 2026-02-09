@@ -489,7 +489,10 @@ int mayo_sign_signature(const mayo_params_t *p, unsigned char *sig,
         // decode the v_i vectors
         for (int i = 0; i <= param_k - 1; ++i)
         {
-            decode(V + i * param_v_bytes, Vdec + i * param_v, param_v);
+            int idx = i;
+            if (i == 1)
+                idx = i - 1;
+            decode(V + idx * param_v_bytes, Vdec + i * param_v, param_v);
         }
         // Vdec[0] = 0;
         // compute M_i matrices and all v_i*P1*v_j
@@ -522,9 +525,9 @@ int mayo_sign_signature(const mayo_params_t *p, unsigned char *sig,
     {
         vi = Vdec + i * (param_n - param_o);
         mat_mul(sk.O, x + i * param_o, Ox, param_o, param_n - param_o, 1);
-        if(i == 0){
-            Ox[0] = 0;
-        }
+        // if(i == 0){
+        //     Ox[0] = 0;
+        // }
         mat_add(vi, Ox, s + i * param_n, param_n - param_o, 1);
         memcpy(s + i * param_n + (param_n - param_o), x + i * param_o, param_o);
     }

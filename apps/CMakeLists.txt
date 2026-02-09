@@ -22,20 +22,36 @@ else()
 endif()
 
 
-## Examples with MAYO API
+## test_mayo VL fault
+# if (ENABLE_PARAMS_DYNAMIC)
+#     add_executable(test_mayo test_mayo.c)
+#     target_link_libraries(test_mayo PRIVATE mayo)
+#     target_include_directories(test_mayo PRIVATE ../include)
+# else()
+#     foreach(MVARIANT ${MVARIANT_S})
+#         string(TOLOWER ${MVARIANT} MVARIANT_LOWER)
+#         add_executable(test_mayo_${MVARIANT_LOWER} test_mayo.c)
+#         target_link_libraries(test_mayo_${MVARIANT_LOWER} PRIVATE ${MVARIANT_LOWER})
+#         target_include_directories(test_mayo_${MVARIANT_LOWER} PRIVATE ../include)
+#         target_compile_definitions(test_mayo_${MVARIANT_LOWER} PRIVATE MAYO_VARIANT=${MVARIANT})
+#     endforeach()
+# endif()
+
+## decode mayo fault
 if (ENABLE_PARAMS_DYNAMIC)
-    add_executable(test_mayo test_mayo.c)
-    target_link_libraries(test_mayo PRIVATE mayo)
-    target_include_directories(test_mayo PRIVATE ../include)
+    add_executable(mayo_decode_fault mayo_decode_fault.c)
+    target_link_libraries(mayo_decode_fault PRIVATE mayo)
+    target_include_directories(mayo_decode_fault PRIVATE ../include)
 else()
     foreach(MVARIANT ${MVARIANT_S})
         string(TOLOWER ${MVARIANT} MVARIANT_LOWER)
-        add_executable(test_mayo_${MVARIANT_LOWER} test_mayo.c)
-        target_link_libraries(test_mayo_${MVARIANT_LOWER} PRIVATE ${MVARIANT_LOWER})
-        target_include_directories(test_mayo_${MVARIANT_LOWER} PRIVATE ../include)
-        target_compile_definitions(test_mayo_${MVARIANT_LOWER} PRIVATE MAYO_VARIANT=${MVARIANT})
+        add_executable(mayo_decode_fault${MVARIANT_LOWER} mayo_decode_fault.c)
+        target_link_libraries(mayo_decode_fault${MVARIANT_LOWER} PRIVATE ${MVARIANT_LOWER})
+        target_include_directories(mayo_decode_fault${MVARIANT_LOWER} PRIVATE ../include)
+        target_compile_definitions(mayo_decode_fault${MVARIANT_LOWER} PRIVATE MAYO_VARIANT=${MVARIANT})
     endforeach()
 endif()
+
 
 
 ## Examples with NIST API
