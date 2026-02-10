@@ -355,7 +355,6 @@ int main(void)
 
         unsigned char d = Delta[i] & 0xF; // delta_sig[i]
 
-        // Solve O_j = g^{-1} * d
         unsigned char inv = inverse_f(g);
         unsigned char a = mul_f(inv, d);
 
