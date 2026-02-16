@@ -490,8 +490,8 @@ int mayo_sign_signature(const mayo_params_t *p, unsigned char *sig,
         for (int i = 0; i <= param_k - 1; ++i)
         {
             int idx = i;
-            if (i == 1)
-                idx = i - 1;
+            // if (i == 1)
+            //     idx = i - 1;
             decode(V + idx * param_v_bytes, Vdec + i * param_v, param_v);
         }
         // Vdec[0] = 0;

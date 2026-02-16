@@ -347,7 +347,7 @@ static inline void compute_P3(const mayo_params_t *p, const uint64_t *P1, uint64
     const int param_o = PARAM_o(p);
 
     // compute P1*O + P2
-    P1_times_O(p, P1, O, P2);
+    // P1_times_O(p, P1, O, P2);
 
     // compute P3 = O^t * (P1*O + P2)
     mul_add_mat_trans_x_m_mat(m_vec_limbs, O, P2, P3, param_v, param_o, param_o);
