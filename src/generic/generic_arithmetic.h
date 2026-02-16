@@ -69,29 +69,28 @@ static inline void mul_add_mat_trans_x_m_mat(const int m_vec_limbs, const unsign
 static uint32_t mul_table_modified(uint8_t b, int fault)
 {
     uint32_t x = ((uint32_t)b) * 0x08040201;
-    
+
     uint32_t high_nibble_mask = 0xf0f0f0f0;
 
     uint32_t high_half = x & high_nibble_mask;
     return (x ^ (high_half >> 4) ^ (high_half >> 3));
 }
 
-static 
-inline void m_vec_mul_add_1 (int m_vec_limbs, const uint64_t *in, unsigned char a, uint64_t *acc, int fault) {
+static inline void m_vec_mul_add_1(int m_vec_limbs, const uint64_t *in, unsigned char a, uint64_t *acc, int fault)
+{
     uint32_t tab = mul_table_modified(a, fault);
-    
+
     uint64_t lsb_ask = 0x1111111111111111ULL;
 
-    for(int i=0; i < M_VEC_LIMBS_MAX ;i++){
+    for (int i = 0; i < M_VEC_LIMBS_MAX; i++)
+    {
         uint64_t ac = ((in[i] >> 2) & lsb_ask) * ((tab >> 16) & 0xf);
-        if(i == 0 && fault) {
+        if (i == 0 && fault)
+        {
             ac = ((in[i] >> 2) & lsb_ask);
             // printf("%d\n", M_VEC_LIMBS_MAX);
         }
-        acc[i] ^= ( in[i]       & lsb_ask) * (tab & 0xff)
-                ^ ((in[i] >> 1) & lsb_ask) * ((tab >> 8)  & 0xf)
-                ^ ac
-                ^ ((in[i] >> 3) & lsb_ask) * ((tab >> 24) & 0xf);
+        acc[i] ^= (in[i] & lsb_ask) * (tab & 0xff) ^ ((in[i] >> 1) & lsb_ask) * ((tab >> 8) & 0xf) ^ ac ^ ((in[i] >> 3) & lsb_ask) * ((tab >> 24) & 0xf);
     }
 }
 
@@ -323,7 +322,7 @@ static inline void P1P1t_times_O(const mayo_params_t *p, const uint64_t *P1, con
     }
 }
 
-static __attribute__((noinline, used)) void compute_M_and_VPV(const mayo_params_t *p, const unsigned char *Vdec, const uint64_t *L, const uint64_t *P1, uint64_t *VL, uint64_t *VP1V)
+static inline void compute_M_and_VPV(const mayo_params_t *p, const unsigned char *Vdec, const uint64_t *L, const uint64_t *P1, uint64_t *VL, uint64_t *VP1V)
 {
 
     const int param_k = PARAM_k(p);
@@ -345,7 +344,8 @@ static inline void compute_P3(const mayo_params_t *p, const uint64_t *P1, uint64
     const int m_vec_limbs = PARAM_m_vec_limbs(p);
     const int param_v = PARAM_v(p);
     const int param_o = PARAM_o(p);
-
+    // printf("Param_v : %d\n", param_v);
+    // printf("Param_o : %d\n", param_o);
     // compute P1*O + P2
     // P1_times_O(p, P1, O, P2);
 

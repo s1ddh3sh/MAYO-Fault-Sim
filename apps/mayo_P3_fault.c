@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 // ---------------- GF(16) arithmetic ----------------
 
@@ -11,7 +12,7 @@ static unsigned char gf_add(unsigned char a, unsigned char b)
     return (a ^ b) & 0xF;
 }
 
-static unsigned char mul_f(unsigned char a, unsigned char b)
+static unsigned char gf_mul(unsigned char a, unsigned char b)
 {
     unsigned char p;
     p = (a & 1) * b;
@@ -27,42 +28,63 @@ static unsigned char mul_f(unsigned char a, unsigned char b)
 
 static unsigned char gf_inv(unsigned char a)
 {
-    unsigned char a2 = mul_f(a, a);
-    unsigned char a4 = mul_f(a2, a2);
-    unsigned char a8 = mul_f(a4, a4);
-    unsigned char a6 = mul_f(a2, a4);
-    unsigned char a14 = mul_f(a8, a6);
+    unsigned char a2 = gf_mul(a, a);
+    unsigned char a4 = gf_mul(a2, a2);
+    unsigned char a8 = gf_mul(a4, a4);
+    unsigned char a6 = gf_mul(a2, a4);
+    unsigned char a14 = gf_mul(a8, a6);
 
     return a14;
 }
 
 // Gaussian Elimination GF(16)
 
-static void solve_linear_system(
-    unsigned char *A, // o x v  (row-major)
-    unsigned char *b, // o
-    unsigned char *x, // v (output)
-    int o,
-    int v)
+static unsigned char extract_m_element(
+    const uint64_t *vec,
+    int ell,
+    int m_vec_limbs)
 {
-    unsigned char M[o][v + 1];
+    int limb = ell / 16;
+    int pos = ell % 16;
 
-    // Build augmented matrix
-    for (int i = 0; i < o; i++)
+    uint64_t word = vec[limb];
+
+    unsigned char val = 0;
+
+    for (int bit = 0; bit < 4; bit++)
     {
-        for (int j = 0; j < v; j++)
-            M[i][j] = A[i * v + j];
-        M[i][v] = b[i];
+        uint64_t mask = 1ULL << (pos + 16 * bit);
+        if (word & mask)
+            val |= (1 << bit);
+    }
+
+    return val & 0xF;
+}
+
+static int solve_linear_system(
+    unsigned char *A,
+    unsigned char *b,
+    unsigned char *x,
+    int rows,
+    int cols)
+{
+    unsigned char *M = calloc(rows * (cols + 1), 1);
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+            M[i * (cols + 1) + j] = A[i * cols + j];
+        M[i * (cols + 1) + cols] = b[i];
     }
 
     int rank = 0;
 
-    for (int col = 0; col < v && rank < o; col++)
+    for (int col = 0; col < cols && rank < rows; col++)
     {
         int pivot = -1;
-        for (int row = rank; row < o; row++)
+        for (int row = rank; row < rows; row++)
         {
-            if (M[row][col] != 0)
+            if (M[row * (cols + 1) + col] != 0)
             {
                 pivot = row;
                 break;
@@ -72,33 +94,35 @@ static void solve_linear_system(
         if (pivot == -1)
             continue;
 
-        // swap
         if (pivot != rank)
         {
-            for (int j = 0; j <= v; j++)
+            for (int j = 0; j <= cols; j++)
             {
-                unsigned char tmp = M[pivot][j];
-                M[pivot][j] = M[rank][j];
-                M[rank][j] = tmp;
+                unsigned char tmp = M[pivot * (cols + 1) + j];
+                M[pivot * (cols + 1) + j] = M[rank * (cols + 1) + j];
+                M[rank * (cols + 1) + j] = tmp;
             }
         }
 
-        // normalize
-        unsigned char inv = gf_inv(M[rank][col]);
-        for (int j = col; j <= v; j++)
-            M[rank][j] = mul_f(M[rank][j], inv);
+        unsigned char inv = gf_inv(M[rank * (cols + 1) + col]);
+        for (int j = col; j <= cols; j++)
+            M[rank * (cols + 1) + j] =
+                gf_mul(M[rank * (cols + 1) + j], inv);
 
-        // eliminate
-        for (int row = 0; row < o; row++)
+        for (int row = 0; row < rows; row++)
         {
-            if (row != rank && M[row][col] != 0)
+            if (row != rank &&
+                M[row * (cols + 1) + col] != 0)
             {
-                unsigned char factor = M[row][col];
-                for (int j = col; j <= v; j++)
+                unsigned char factor =
+                    M[row * (cols + 1) + col];
+
+                for (int j = col; j <= cols; j++)
                 {
-                    M[row][j] =
-                        gf_add(M[row][j],
-                               mul_f(factor, M[rank][j]));
+                    M[row * (cols + 1) + j] =
+                        gf_add(M[row * (cols + 1) + j],
+                               gf_mul(factor,
+                                      M[rank * (cols + 1) + j]));
                 }
             }
         }
@@ -106,27 +130,26 @@ static void solve_linear_system(
         rank++;
     }
 
-    // Set free variables = 0
-    for (int j = 0; j < v; j++)
-        x[j] = 0;
+    memset(x, 0, cols);
 
-    // Back substitute
     for (int i = 0; i < rank; i++)
     {
         int lead = -1;
-        for (int j = 0; j < v; j++)
-            if (M[i][j] == 1)
+        for (int j = 0; j < cols; j++)
+        {
+            if (M[i * (cols + 1) + j] == 1)
             {
                 lead = j;
                 break;
             }
+        }
 
         if (lead != -1)
-            x[lead] = M[i][v];
+            x[lead] = M[i * (cols + 1) + cols];
     }
 
-    printf("System rank = %d, solution space dim ≈ %d\n",
-           rank, v - rank);
+    free(M);
+    return rank;
 }
 
 // ---------------- Fault Simulation ----------------
@@ -137,6 +160,8 @@ static int example_fault_P3_OtP2(const mayo_params_t *p)
 
     int v = PARAM_v(p);
     int o = PARAM_o(p);
+    int m = PARAM_m(p);
+    int m_vec_limbs = PARAM_m_vec_limbs(p);
 
     unsigned char *pk = calloc(1, PARAM_cpk_bytes(p));
     unsigned char *sk = calloc(1, PARAM_csk_bytes(p));
@@ -150,45 +175,68 @@ static int example_fault_P3_OtP2(const mayo_params_t *p)
     uint64_t *P2 = epk + PARAM_P1_limbs(p);
     uint64_t *P3_fault = epk + PARAM_P1_limbs(p) + PARAM_P2_limbs(p);
 
-    printf("\nRecovering oil columns via P2^T x = b\n");
+    printf("0x%016" PRIx64 "\n", *P3_fault);
+
+    // printf("\nRecovering oil columns via P2^T x = b\n");
 
     for (int col = 0; col < o; col++)
     {
         printf("\n--- Oil column %d ---\n", col);
 
-        unsigned char A[o * v];
-        unsigned char b_vec[o];
-        unsigned char x_sol[v];
+        int rows = m * o;
+        int cols = v;
 
-        // Build A = P2^T
-        for (int i = 0; i < o; i++)
+        unsigned char *A = calloc(rows * cols, 1);
+        unsigned char *b = calloc(rows, 1);
+        unsigned char *x = calloc(cols, 1);
+
+        int eq = 0;
+
+        for (int ell = 0; ell < m; ell++)
         {
-            for (int j = 0; j < v; j++)
+            for (int j = 0; j < o; j++)
             {
-                // decode P2(j,i)
-                A[i * v + j] =
-                    ((unsigned char *)P2)[j * o + i] & 0xF;
+                const uint64_t *P3_entry =
+                    P3_fault +
+                    m_vec_limbs * (col * o + j);
+
+                b[eq] =
+                    extract_m_element(P3_entry,
+                                      ell,
+                                      m_vec_limbs);
+
+                for (int r = 0; r < v; r++)
+                {
+                    const uint64_t *P2_entry =
+                        P2 +
+                        m_vec_limbs * (r * o + j);
+
+                    A[eq * cols + r] =
+                        extract_m_element(P2_entry,
+                                          ell,
+                                          m_vec_limbs);
+                }
+
+                eq++;
             }
         }
 
-        // Build RHS from faulty P3 row
-        for (int i = 0; i < o; i++)
-        {
-            b_vec[i] =
-                ((unsigned char *)P3_fault)[col * o + i] & 0xF;
-        }
+        int rank =
+            solve_linear_system(A, b, x, rows, cols);
 
-        solve_linear_system(A, b_vec, x_sol, o, v);
+        printf("Rank = %d\n", rank);
 
-        printf("Recovered (one solution):\n");
+        printf("Recovered:\n");
         for (int i = 0; i < v; i++)
-            printf("%x ", x_sol[i]);
-        printf("\n");
-
-        printf("Real O column:\n");
+            printf("%x ", x[i]);
+        printf("\n\nReal:\n");
         for (int i = 0; i < v; i++)
             printf("%x ", esk->O[i * o + col] & 0xF);
         printf("\n");
+
+        free(A);
+        free(b);
+        free(x);
     }
 
     free(pk);
