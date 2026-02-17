@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdalign.h>
+#include <inttypes.h>
 #ifdef ENABLE_CT_TESTING
 #include <valgrind/memcheck.h>
 #endif
@@ -490,8 +491,8 @@ int mayo_sign_signature(const mayo_params_t *p, unsigned char *sig,
         for (int i = 0; i <= param_k - 1; ++i)
         {
             int idx = i;
-            // if (i == 1)
-            //     idx = i - 1;
+            if (i == 1)
+                idx = i - 1;
             decode(V + idx * param_v_bytes, Vdec + i * param_v, param_v);
         }
         // Vdec[0] = 0;
@@ -648,9 +649,11 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
     memcpy(cpk, seed_pk, param_pk_seed_bytes);
 
     uint64_t P3_upper[P3_LIMBS_MAX];
-
+    printf("P3_upper = 0x%016" PRIx64 "\n", *P3);
+    
     // compute Upper(P3) and store in cpk
     m_upper(p, P3, P3_upper, param_o);
+    printf("P3_upper = 0x%016" PRIx64 "\n", *P3_upper);
     pack_m_vecs(P3_upper, cpk + param_pk_seed_bytes, param_P3_limbs / m_vec_limbs, param_m);
 
 #if !defined(PQM4) && !defined(HAVE_RANDOMBYTES_NORETVAL)
