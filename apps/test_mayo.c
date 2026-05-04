@@ -2,7 +2,7 @@
 #include <mem.h>
 #include <stdlib.h>
 #include <string.h>
-#include "mayo_sim.c"
+#include "mayo_vL_fault.c"
 
 int main(void)
 {

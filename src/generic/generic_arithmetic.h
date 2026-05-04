@@ -102,7 +102,7 @@ static inline void m_vec_mul_add_1(int m_vec_limbs, const uint64_t *in, unsigned
 static inline void mul_add_mat_x_m_mat(const int m_vec_limbs, const unsigned char *mat, const uint64_t *bs_mat, uint64_t *acc,
                                        const int mat_rows, const int mat_cols, const int bs_mat_cols, int do_fault)
 {
-    // int fault;
+    // int fault=0;
     for (int r = 0; r < mat_rows; r++)
     {
         for (int c = 0; c < mat_cols; c++)
@@ -118,8 +118,8 @@ static inline void mul_add_mat_x_m_mat(const int m_vec_limbs, const unsigned cha
                 //         fprintf(stderr, "[FAULT] skipping mul at (r=%d,c=%d,k=%d): v0[0]=0x%x, L_block[0]=0x%016llx\n",
                 //                 r, c, k, (unsigned)vineg, (unsigned long long)L_block[0]);
                 //         /* simulate multiplication returning 0: do nothing (skip m_vec_mul_add) */
-                //     // continue;
-                //     fault = 1;
+                //     continue;
+                //     // fault = 1;
                 // }
                 m_vec_mul_add(m_vec_limbs, bs_mat + m_vec_limbs * (c * bs_mat_cols + k), mat[r * mat_cols + c], acc + m_vec_limbs * (r * bs_mat_cols + k));
             }

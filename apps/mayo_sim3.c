@@ -105,14 +105,14 @@ static int example_fault_sim(const mayo_params_t *p)
     
     /* ---- Verify ---- */
     int res = mayo_verify(p, msg, sizeof(msg), sig, pk);
-    if (res != MAYO_OK)
-    {
-        printf("[FAULT] Signature INVALID\n");
-        printf("\n");
-        goto cleanup;
-    }
+    // if (res != MAYO_OK)
+    // {
+    //     printf("[FAULT] Signature INVALID\n");
+    //     printf("\n");
+    //     goto cleanup;
+    // }
 
-    printf("[FAULT] Signature VALID\n");
+    // printf("[FAULT] Signature VALID\n");
 
     /* ---- Decode signature ---- */
     nibbles = calloc(n, 1);
@@ -129,8 +129,11 @@ static int example_fault_sim(const mayo_params_t *p)
     unsigned char trueOx0 = compute_Ox0(esk, xvec, o);
     printf("True (O x)[0] = 0x%x\n", trueOx0);
 
-    if (trueOx0 == nibbles[0])
+    if (trueOx0 == nibbles[0]){
         printf("MATCH: s[0] == (O x)[0]\n");
+        return 1;
+    }
+    
     else
         printf("FAIL: mismatch\n");
     printf("\n");
