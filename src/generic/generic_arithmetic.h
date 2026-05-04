@@ -307,11 +307,11 @@ static inline void P1P1t_times_O(const mayo_params_t *p, const uint64_t *P1, con
     {
         for (int c = r; c < param_v; c++)
         {
-            if (c == r)
-            {
-                bs_mat_entries_used += 1;
-                continue;
-            }
+            // if (c == r)
+            // {
+            //     bs_mat_entries_used += 1;
+            //     continue;
+            // }
             for (int k = 0; k < param_o; k += 1)
             {
                 m_vec_mul_add(m_vec_limbs, P1 + m_vec_limbs * bs_mat_entries_used, O[c * param_o + k], acc + m_vec_limbs * (r * param_o + k));
