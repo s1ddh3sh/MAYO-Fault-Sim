@@ -1,0 +1,68 @@
+Fault sim: P3 = O^T P2
+P3_upper = 0xf55e74324d748a05
+
+Verifying P3 = O^T P2 + P2^T O
+Equation holds for all entries.
+P3_full = 0xf55e74324d748a05
+SOlving 2808 equations in 624 variables : 
+System rank = 624
+
+==============================
+Recovered Oil Matrix (column-wise)
+==============================
+
+Column 0:
+e 3 2 6 1 0 a 5 a 7 7 4 6 3 9 8 1 7 e b 0 c 6 a d c 7 b 3 2 d 1 3 a b a c d 9 b 8 3 3 3 2 3 3 5 f 7 a 6 6 9 8 3 4 c 8 e d d c 6 1 2 2 0 0 3 f 2 e d 8 5 d f 
+
+Column 1:
+0 f f 2 a 5 b d f d 5 3 5 3 d 1 0 1 0 d 8 c 9 c e b 2 a 7 5 1 8 3 8 f 9 2 4 1 2 7 c f b 3 8 a 4 c 3 e 8 0 7 8 b 8 2 a d 8 2 d 9 b 6 7 5 2 e b a 8 5 9 0 a e 
+
+Column 2:
+d 5 f 3 9 6 a 3 d c 1 4 0 b a 4 d d 9 b 2 9 1 8 3 4 e 2 b 7 c 3 8 9 e 5 2 0 a d e 1 6 7 d 1 d e c 6 9 5 7 5 8 8 f 0 0 b f 0 7 a d 0 6 1 f c 5 2 e 9 3 9 a a 
+
+Column 3:
+3 1 c e 1 c a e 8 b 1 0 4 d d f 4 d 5 a 9 3 5 d 5 a 9 1 b d c 1 1 c 7 7 f 2 f a c b 8 3 6 6 e 4 d 4 4 3 7 e 9 b e 9 e d f 9 b b 1 d d 9 e 7 3 5 9 6 b 4 b 9 
+
+Column 4:
+8 8 0 0 2 5 4 1 2 f 3 4 6 e f f c e b a 9 5 c 2 7 9 c f e 2 1 d f 2 3 b 7 c 7 d 9 c d 5 c 4 e 7 7 0 8 2 a 4 5 9 d 3 4 e 4 a 1 c 0 3 d 8 d f 5 f 4 b d 5 0 d 
+
+Column 5:
+b 5 a 4 6 4 1 c 5 2 e 2 8 7 9 0 3 2 9 d 1 c d 8 7 5 b 8 d 9 c f 5 f f 1 e 8 1 a 7 1 f 1 0 9 6 4 5 6 c 4 0 5 2 1 8 4 7 e 5 f a e e 8 a f c 3 c 1 a c b d c 1 
+
+Column 6:
+4 2 f 2 f 1 c c 7 4 a 8 d 7 a 1 3 9 6 c f 7 3 c 4 4 7 0 d c 7 f 2 1 2 7 0 7 0 4 5 b 9 4 2 f 0 1 1 2 2 7 0 f e 4 4 5 3 2 c c e 7 6 a d 7 6 4 2 2 5 7 a e 9 0 
+
+Column 7:
+1 6 4 2 8 2 0 8 c 6 f e 4 8 c c 2 b 3 b b 7 f b 8 8 5 8 b 7 7 4 b c 1 9 6 e 0 3 0 6 2 4 9 f 1 2 6 3 3 e d e f 0 f 7 d d 9 f d f 2 a 0 6 9 d 2 4 2 4 b 4 a 1 
+
+==============================
+Real Oil Matrix (column-wise)
+==============================
+
+Column 0:
+e 3 2 6 1 0 a 5 a 7 7 4 6 3 9 8 1 7 e b 0 c 6 a d c 7 b 3 2 d 1 3 a b a c d 9 b 8 3 3 3 2 3 3 5 f 7 a 6 6 9 8 3 4 c 8 e d d c 6 1 2 2 0 0 3 f 2 e d 8 5 d f 
+
+Column 1:
+0 f f 2 a 5 b d f d 5 3 5 3 d 1 0 1 0 d 8 c 9 c e b 2 a 7 5 1 8 3 8 f 9 2 4 1 2 7 c f b 3 8 a 4 c 3 e 8 0 7 8 b 8 2 a d 8 2 d 9 b 6 7 5 2 e b a 8 5 9 0 a e 
+
+Column 2:
+d 5 f 3 9 6 a 3 d c 1 4 0 b a 4 d d 9 b 2 9 1 8 3 4 e 2 b 7 c 3 8 9 e 5 2 0 a d e 1 6 7 d 1 d e c 6 9 5 7 5 8 8 f 0 0 b f 0 7 a d 0 6 1 f c 5 2 e 9 3 9 a a 
+
+Column 3:
+3 1 c e 1 c a e 8 b 1 0 4 d d f 4 d 5 a 9 3 5 d 5 a 9 1 b d c 1 1 c 7 7 f 2 f a c b 8 3 6 6 e 4 d 4 4 3 7 e 9 b e 9 e d f 9 b b 1 d d 9 e 7 3 5 9 6 b 4 b 9 
+
+Column 4:
+8 8 0 0 2 5 4 1 2 f 3 4 6 e f f c e b a 9 5 c 2 7 9 c f e 2 1 d f 2 3 b 7 c 7 d 9 c d 5 c 4 e 7 7 0 8 2 a 4 5 9 d 3 4 e 4 a 1 c 0 3 d 8 d f 5 f 4 b d 5 0 d 
+
+Column 5:
+b 5 a 4 6 4 1 c 5 2 e 2 8 7 9 0 3 2 9 d 1 c d 8 7 5 b 8 d 9 c f 5 f f 1 e 8 1 a 7 1 f 1 0 9 6 4 5 6 c 4 0 5 2 1 8 4 7 e 5 f a e e 8 a f c 3 c 1 a c b d c 1 
+
+Column 6:
+4 2 f 2 f 1 c c 7 4 a 8 d 7 a 1 3 9 6 c f 7 3 c 4 4 7 0 d c 7 f 2 1 2 7 0 7 0 4 5 b 9 4 2 f 0 1 1 2 2 7 0 f e 4 4 5 3 2 c c e 7 6 a d 7 6 4 2 2 5 7 a e 9 0 
+
+Column 7:
+1 6 4 2 8 2 0 8 c 6 f e 4 8 c c 2 b 3 b b 7 f b 8 8 5 8 b 7 7 4 b c 1 9 6 e 0 3 0 6 2 4 9 f 1 2 6 3 3 e d e f 0 f 7 d d 9 f d f 2 a 0 6 9 d 2 4 2 4 b 4 a 1 
+
+==============================
+SUCCESS: Oil fully recovered
+==============================
