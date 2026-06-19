@@ -277,6 +277,138 @@ static void verify_fault_equation(
     free(P3_full);
 }
 
+static inline void compute_P3(const mayo_params_t *p, const uint64_t *P1, uint64_t *P2, const unsigned char *O, uint64_t *P3)
+{
+
+    const int m_vec_limbs = PARAM_m_vec_limbs(p);
+    const int param_v = PARAM_v(p);
+    const int param_o = PARAM_o(p);
+    // printf("Param_v : %d\n", param_v);
+    // printf("Param_o : %d\n", param_o);
+    // compute P1*O + P2
+    P1_times_O(p, P1, O, P2);
+
+    // compute P3 = O^t * (P1*O + P2)
+    mul_add_mat_trans_x_m_mat(m_vec_limbs, O, P2, P3, param_v, param_o, param_o);
+}
+void m_upper(const mayo_params_t *p, const uint64_t *in, uint64_t *out, int size)
+{
+#ifndef ENABLE_PARAMS_DYNAMIC
+    (void)p;
+#endif
+    // Look into AVX2'ing this
+    const int m_vec_limbs = PARAM_m_vec_limbs(p);
+    int m_vecs_stored = 0;
+    for (int r = 0; r < size; r++)
+    {
+        for (int c = r; c < size; c++)
+        {
+            m_vec_copy(m_vec_limbs, in + m_vec_limbs * (r * size + c), out + m_vec_limbs * m_vecs_stored);
+            if (r != c)
+            {
+                m_vec_add(m_vec_limbs, in + m_vec_limbs * (c * size + r), out + m_vec_limbs * m_vecs_stored);
+            }
+            m_vecs_stored++;
+        }
+    }
+}
+
+static void pack_m_vecs(const uint64_t *in, unsigned char *out, int vecs, int m){
+    const int m_vec_limbs = (m + 15) / 16;
+    unsigned char *_in = (unsigned char *) in;
+    for (int i = 0; i < vecs; i++)
+    {
+        memmove(out + (i*m/2), _in + i*m_vec_limbs*sizeof(uint64_t), m/2);
+    }
+}
+
+// ---------------- Rebuild public key from recovered O ----------------
+
+// Re-derives P3 from the recovered oil secret and the (faulted) epk's P1/P2,
+// then repacks cpk exactly like mayo_keypair_compact does after compute_P3,
+// so the result can be diffed against the genuine public key.
+static void rebuild_pk_from_recovered_O(
+    const mayo_params_t *p,
+    const uint64_t *epk,
+    const unsigned char *recovered_x, // laid out as x[i * v + k], i in [0,o), k in [0,v)
+    const unsigned char *real_pk,
+    int real_pk_len)
+{
+    int v = PARAM_v(p);
+    int o = PARAM_o(p);
+    int m_vec_limbs = PARAM_m_vec_limbs(p);
+
+    int param_pk_seed_bytes = PARAM_pk_seed_bytes(p);
+    int param_P1_limbs = PARAM_P1_limbs(p);
+    int param_P2_limbs = PARAM_P2_limbs(p);
+    int param_P3_limbs = PARAM_P3_limbs(p);
+
+    // Re-layout recovered oil matrix into O[k * o + i] form, matching esk->O / sk_t,
+    // which is what compute_P3 / P1_times_O expect.
+    unsigned char *O_rec = calloc((size_t)v * o, 1);
+    for (int i = 0; i < o; i++)
+        for (int k = 0; k < v; k++)
+            O_rec[k * o + i] = recovered_x[i * v + k] & 0xF;
+
+    // P1 is untouched by the fault; P2 will be overwritten in place by compute_P3
+    // (it computes P1*O + P2 into P2), so work on a fresh copy taken from epk.
+    const uint64_t *P1 = epk;
+    uint64_t *P2_work = calloc(param_P2_limbs, sizeof(uint64_t));
+    memcpy(P2_work, epk + param_P1_limbs, param_P2_limbs * sizeof(uint64_t));
+
+    uint64_t *P3 = calloc((size_t)o * o * m_vec_limbs, sizeof(uint64_t));
+
+    compute_P3(p, P1, P2_work, O_rec, P3);
+
+    uint64_t *P3_upper = calloc(param_P3_limbs, sizeof(uint64_t));
+    m_upper(p, P3, P3_upper, o);
+
+    unsigned char *rebuilt_pk = calloc(1, real_pk_len);
+
+    // seed_pk: the fault sim doesn't expose the original seed_pk directly here,
+    // so just copy it from the real pk for this check (it's public anyway and
+    // untouched by the fault / by O-recovery).
+    memcpy(rebuilt_pk, real_pk, param_pk_seed_bytes);
+
+    pack_m_vecs(P3_upper, rebuilt_pk + param_pk_seed_bytes,
+                param_P3_limbs / m_vec_limbs, PARAM_m(p));
+
+    printf("\n==============================\n");
+    printf("Recomputing public key from recovered O\n");
+    printf("==============================\n");
+
+    int diff = memcmp(rebuilt_pk, real_pk, real_pk_len);
+
+    if (diff == 0)
+    {
+        printf("SUCCESS: rebuilt public key matches the real public key.\n");
+    }
+    else
+    {
+        printf("FAIL: rebuilt public key differs from the real public key.\n");
+
+        int first_mismatch = -1;
+        for (int i = 0; i < real_pk_len; i++)
+        {
+            if (rebuilt_pk[i] != real_pk[i])
+            {
+                first_mismatch = i;
+                break;
+            }
+        }
+        printf("First differing byte at offset %d (real=0x%02x, rebuilt=0x%02x)\n",
+               first_mismatch,
+               real_pk[first_mismatch],
+               rebuilt_pk[first_mismatch]);
+    }
+
+    free(O_rec);
+    free(P2_work);
+    free(P3);
+    free(P3_upper);
+    free(rebuilt_pk);
+}
+
 // ---------------- Fault Simulation ----------------
 
 static void example_fault_P3_OtP2(const mayo_params_t *p)
@@ -459,6 +591,10 @@ static void example_fault_P3_OtP2(const mayo_params_t *p)
     else
         printf("FAIL: Oil mismatch\n");
     printf("==============================\n");
+
+    // Now recompute P3 from the recovered O and rebuild cpk, to check that
+    // a fresh keypair_compact-style packing reproduces the real public key.
+    rebuild_pk_from_recovered_O(p, epk, x, pk, PARAM_cpk_bytes(p));
 
     free(pk);
     mayo_secure_free(sk, PARAM_csk_bytes(p));
