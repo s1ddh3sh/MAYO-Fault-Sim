@@ -18,18 +18,6 @@
 
 // ---------------- GF(16) arithmetic ----------------
 
-// static void unpack_m_vecs(const unsigned char *in, uint64_t *out, int vecs,
-// int m){
-//     const int m_vec_limbs = (m + 15) / 16;
-//     unsigned char *_out = (unsigned char *) out;
-//     uint64_t tmp[ (M_MAX + 15) / 16] = {0};
-//     for (int i = vecs-1; i >= 0; i--)
-//     {
-//         memcpy(tmp, in + i*m/2, m/2);
-//         memcpy(_out + i*m_vec_limbs*sizeof(uint64_t), tmp,
-//         m_vec_limbs*sizeof(uint64_t));
-//     }
-// }
 static unsigned char gf_add(unsigned char a, unsigned char b) {
   return (a ^ b) & 0xF;
 }
@@ -241,105 +229,6 @@ static void verify_fault_equation(const mayo_params_t *p, const uint64_t *epk,
   free(P3_full);
 }
 
-// static inline void m_vec_copy(int m_vec_limbs, const uint64_t *in,
-//                               uint64_t *out) {
-//   for (int i = 0; i < m_vec_limbs; i++) {
-//     out[i] = in[i];
-//   }
-// }
-
-// static inline void m_vec_add(int m_vec_limbs, const uint64_t *in,
-//                              uint64_t *acc) {
-//   for (int i = 0; i < m_vec_limbs; i++) {
-//     acc[i] ^= in[i];
-//   }
-// }
-
-// static inline uint32_t mul_table(uint8_t b) {
-//   uint32_t x = ((uint32_t)b) * 0x08040201;
-
-//   uint32_t high_nibble_mask = 0xf0f0f0f0;
-
-//   uint32_t high_half = x & high_nibble_mask;
-//   return (x ^ (high_half >> 4) ^ (high_half >> 3));
-// }
-
-// static inline void m_vec_mul_add(int m_vec_limbs, const uint64_t *in,
-//                                  unsigned char a, uint64_t *acc) {
-//   (void)m_vec_limbs;
-//   uint32_t tab = mul_table(a);
-//   uint64_t lsb_ask = 0x1111111111111111ULL;
-
-//   for (int i = 0; i < M_VEC_LIMBS_MAX; i++) {
-//     acc[i] ^= (in[i] & lsb_ask) * (tab & 0xff) ^
-//               ((in[i] >> 1) & lsb_ask) * ((tab >> 8) & 0xf) ^
-//               ((in[i] >> 2) & lsb_ask) * ((tab >> 16) & 0xf) ^
-//               ((in[i] >> 3) & lsb_ask) * ((tab >> 24) & 0xf);
-//   }
-// }
-
-// multiplies m (possibly upper triangular) matrices with a single matrix and
-// adds result to acc
-// static inline void mul_add_m_upper_triangular_mat_x_mat(
-//     const int m_vec_limbs, const uint64_t *bs_mat, const unsigned char *mat,
-//     uint64_t *acc, const int bs_mat_rows, const int bs_mat_cols,
-//     const int mat_cols, const int triangular) {
-//   int bs_mat_entries_used = 0;
-//   for (int r = 0; r < bs_mat_rows; r++) {
-//     for (int c = triangular * r; c < bs_mat_cols; c++) {
-//       for (int k = 0; k < mat_cols; k += 1) {
-//         m_vec_mul_add(m_vec_limbs, bs_mat + m_vec_limbs *
-//         bs_mat_entries_used,
-//                       mat[c * mat_cols + k],
-//                       acc + m_vec_limbs * (r * mat_cols + k));
-//       }
-//       bs_mat_entries_used += 1;
-//     }
-//   }
-// }
-
-// static inline void P1_times_O(const mayo_params_t *p, const uint64_t *P1,
-//                               const unsigned char *O, uint64_t *acc) {
-// #ifndef ENABLE_PARAMS_DYNAMIC
-//   (void)p;
-// #endif
-//   mul_add_m_upper_triangular_mat_x_mat(PARAM_m_vec_limbs(p), P1, O, acc,
-//                                        PARAM_v(p), PARAM_v(p), PARAM_o(p),
-//                                        1);
-// }
-
-// multiplies the transpose of a single matrix with m matrices and adds result
-// to acc
-// static inline void mul_add_mat_trans_x_m_mat(const int m_vec_limbs,
-//                                              const unsigned char *mat,
-//                                              const uint64_t *bs_mat,
-//                                              uint64_t *acc, const int
-//                                              mat_rows, const int mat_cols,
-//                                              const int bs_mat_cols) {
-//   for (int r = 0; r < mat_cols; r++) {
-//     for (int c = 0; c < mat_rows; c++) {
-//       for (int k = 0; k < bs_mat_cols; k += 1) {
-//         m_vec_mul_add(m_vec_limbs, bs_mat + m_vec_limbs * (c * bs_mat_cols +
-//         k),
-//                       mat[c * mat_cols + r],
-//                       acc + m_vec_limbs * (r * bs_mat_cols + k));
-//       }
-//     }
-//   }
-// }
-
-// static void expand_P1_P2(const mayo_params_t *p, uint64_t *P,
-//                          const unsigned char *seed_pk) {
-// #ifndef ENABLE_PARAMS_DYNAMIC
-//   (void)p;
-// #endif
-//   PK_PRF((unsigned char *)P, PARAM_P1_bytes(p) + PARAM_P2_bytes(p), seed_pk,
-//          PARAM_pk_seed_bytes(p));
-//   unpack_m_vecs((unsigned char *)P, P,
-//                 (PARAM_P1_limbs(p) + PARAM_P2_limbs(p)) /
-//                 PARAM_m_vec_limbs(p), PARAM_m(p));
-// }
-
 static inline void compute_P3_correct(const mayo_params_t *p,
                                       const uint64_t *P1, uint64_t *P2,
                                       const unsigned char *O, uint64_t *P3) {
@@ -354,26 +243,6 @@ static inline void compute_P3_correct(const mayo_params_t *p,
   mul_add_mat_trans_x_m_mat(m_vec_limbs, O, P2, P3, param_v, param_o, param_o);
 }
 
-// void m_upper(const mayo_params_t *p, const uint64_t *in, uint64_t *out,
-//              int size) {
-// #ifndef ENABLE_PARAMS_DYNAMIC
-//   (void)p;
-// #endif
-//   const int m_vec_limbs = PARAM_m_vec_limbs(p);
-//   int m_vecs_stored = 0;
-//   for (int r = 0; r < size; r++) {
-//     for (int c = r; c < size; c++) {
-//       m_vec_copy(m_vec_limbs, in + m_vec_limbs * (r * size + c),
-//                  out + m_vec_limbs * m_vecs_stored);
-//       if (r != c) {
-//         m_vec_add(m_vec_limbs, in + m_vec_limbs * (c * size + r),
-//                   out + m_vec_limbs * m_vecs_stored);
-//       }
-//       m_vecs_stored++;
-//     }
-//   }
-// }
-
 static void pack_m_vecs(const uint64_t *in, unsigned char *out, int vecs,
                         int m) {
   const int m_vec_limbs = (m + 15) / 16;
@@ -383,18 +252,7 @@ static void pack_m_vecs(const uint64_t *in, unsigned char *out, int vecs,
   }
 }
 
-// static void unpack_m_vecs(const unsigned char *in, uint64_t *out, int vecs,
-// int m){
-//     const int m_vec_limbs = (m + 15) / 16;
-//     unsigned char *_out = (unsigned char *) out;
-//     uint64_t tmp[ (M_MAX + 15) / 16] = {0};
-//     for (int i = vecs-1; i >= 0; i--)
-//     {
-//         memcpy(tmp, in + i*m/2, m/2);
-//         memcpy(_out + i*m_vec_limbs*sizeof(uint64_t), tmp,
-//         m_vec_limbs*sizeof(uint64_t));
-//     }
-// }
+
 // ---------------- Rebuild public key from recovered O ----------------
 static void dump_hex(const char *label, const unsigned char *buf, size_t len) {
   printf("%s (%zu bytes):\n", label, len);

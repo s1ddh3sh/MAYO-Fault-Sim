@@ -1,9 +1,9 @@
 Fault sim: P3 = O^T P2
-P3_upper = 0xded252e414afc070
+P3_upper = 0xb97aa5604ec2872e
 
 Verifying P3 = O^T P2 + P2^T O
 Equation holds for all entries.
-P3_full = 0xded252e414afc070
+P3_full = 0xb97aa5604ec2872e
 SOlving 2808 equations in 624 variables : 
 System rank = 624
 
@@ -12,56 +12,56 @@ Recovered Oil Matrix (column-wise)
 ==============================
 
 Column 0:
-a 1 a 2 2 d 6 1 a 4 a 2 1 e 0 5 f f 1 c b 0 f 0 3 4 8 9 5 8 0 a 1 d 7 2 1 c 5 b 5 1 6 a 1 9 2 6 f 5 3 d c 3 2 3 9 e 3 e a 6 6 4 0 4 e 1 d c 7 8 5 7 c f 3 a 
+e 7 9 1 e 0 f 2 3 a 5 8 e 3 7 e 4 1 a c 7 a f 1 8 9 9 8 f 9 4 f e 3 e 4 0 0 6 2 a 2 b 1 d 2 0 e c 5 2 7 a e 7 9 d 7 1 7 3 4 3 a 5 9 6 6 1 e f 0 f 5 1 8 f d 
 
 Column 1:
-b 0 e 6 e 0 c 1 f 2 2 1 a e 7 b e b 8 5 2 2 c a b 2 8 3 7 0 e 7 1 d 7 6 4 d a 2 f 2 e 7 4 9 5 e 8 c 0 9 1 8 7 0 5 5 e 6 1 a 7 c f 7 c e f 8 4 3 d 2 a f b 1 
+3 9 0 0 f c 6 f 9 e 2 d b a 4 4 d e 8 8 b a e 3 5 f b d f f 7 c c a 6 d e d c 8 8 3 f 8 d 1 7 d 3 c 0 1 c f b e a c 7 f e d d e 9 9 b 4 7 3 4 f 8 b c 8 8 f 
 
 Column 2:
-f 2 6 b c 4 4 e 1 8 7 8 4 9 a 5 6 8 c a b f 1 2 c a 4 9 c d 0 4 c 7 6 6 c 5 9 1 a 0 2 1 7 8 c d 4 c 3 6 2 b 1 7 5 8 a 9 f 2 8 6 a 8 3 b 1 7 d 6 c b 4 b 2 5 
+3 f 1 2 1 6 f e d 4 0 6 0 3 5 9 1 3 e d 6 b b 3 1 6 e c b 2 3 7 3 7 7 2 9 0 d 7 2 d 6 c c 6 3 5 2 2 9 c 5 6 8 2 a 0 e c c 4 2 6 3 a 3 3 7 c 3 4 8 3 8 4 5 6 
 
 Column 3:
-2 2 a f 7 f 9 1 5 f 2 4 3 2 e 8 a 1 2 e 8 b 5 4 9 8 8 b 9 a a 2 8 6 6 6 1 9 1 f f c 2 0 2 d f f 5 7 7 1 0 a 9 9 0 2 7 4 d f 8 b 8 e d 9 8 f 6 1 a f 9 c 8 f 
+1 a 0 c a 3 8 b 7 3 5 7 8 d b 9 1 9 c c 5 c c c 3 c e 0 c d 3 5 2 3 5 0 b 6 b 0 f 3 2 e 7 5 6 2 c 7 c 3 4 6 d 2 3 c 8 5 e a 0 1 e f 3 6 0 7 b d c 5 7 f 9 d 
 
 Column 4:
-3 a 8 4 a b 1 3 9 b 2 2 5 f 1 0 b c 1 f 1 2 a 6 e 8 4 c 8 0 e 7 5 a 0 8 a 1 f 5 6 7 8 e 7 4 3 8 6 0 0 f 1 3 3 3 1 0 d 9 1 d 8 8 2 0 4 4 d c f 8 0 8 6 9 2 f 
+f d 9 b 9 8 e d f c d a d 2 3 0 a 9 f a d 0 6 e a 5 9 8 f 1 f c 4 4 9 9 9 f c e b 0 c 5 2 2 3 8 3 e 4 7 8 e d b 5 6 c 8 6 1 4 9 1 5 d c 0 7 5 6 f 6 8 5 4 8 
 
 Column 5:
-e d 9 7 a 0 1 d f 9 2 2 b 5 9 0 3 f a b a 7 3 8 8 2 6 1 6 6 c 3 d 1 f e b 7 e f 0 c b e 6 8 e 6 4 e b a 0 0 2 0 3 3 3 6 a 0 6 9 2 5 c a 3 2 7 6 c 4 a a 8 b 
+d 9 6 5 1 c a b a 9 7 b 8 d f 8 8 5 c 3 d 4 3 c 2 3 4 e 0 f 2 0 f 1 f 7 a 6 a 1 6 3 7 4 5 3 c 9 f 5 d 1 0 b f 1 2 7 1 a 0 9 c e 1 f 0 2 c 0 f 2 1 b e 7 3 b 
 
 Column 6:
-d 4 e b b 2 0 4 e 8 9 4 5 4 e 1 5 8 1 7 8 8 7 8 0 2 c 2 5 c b e 2 b 4 9 c 9 d d 2 8 4 8 4 3 d 2 c 4 3 0 e 2 6 3 6 5 a b 1 b a 6 d 4 7 d 5 3 0 8 c c 7 4 8 9 
+4 3 8 5 e 9 0 2 f e c 7 f d 6 1 7 4 4 9 6 0 6 2 0 4 6 d d 9 4 8 d f 1 8 1 2 8 9 2 5 f b 8 0 0 7 e 6 d 4 c 8 d 4 0 2 0 c 8 3 b c e 8 6 9 2 6 6 e f b 2 c a 2 
 
 Column 7:
-3 e c 7 9 e c 9 6 7 d c 2 a 5 e d 9 5 6 5 f 2 9 d c b 4 b 5 1 7 2 8 7 e 8 d d 6 f 8 d f c d a e 6 d 2 e 8 3 6 f 0 2 7 6 7 6 d 8 2 3 7 b 7 2 2 e 0 1 6 b 4 f 
+1 8 b 0 9 c c 4 1 d 3 4 9 f 4 9 d 0 3 1 0 f d d 7 e 0 a 9 9 2 a 6 2 c 3 c f 1 e 4 f 7 b c 8 d d 6 e e b a 1 d 2 0 0 3 b 8 7 e 9 e 0 1 4 d 9 a 3 0 2 6 e 5 5 
 
 ==============================
 Real Oil Matrix (column-wise)
 ==============================
 
 Column 0:
-a 1 a 2 2 d 6 1 a 4 a 2 1 e 0 5 f f 1 c b 0 f 0 3 4 8 9 5 8 0 a 1 d 7 2 1 c 5 b 5 1 6 a 1 9 2 6 f 5 3 d c 3 2 3 9 e 3 e a 6 6 4 0 4 e 1 d c 7 8 5 7 c f 3 a 
+e 7 9 1 e 0 f 2 3 a 5 8 e 3 7 e 4 1 a c 7 a f 1 8 9 9 8 f 9 4 f e 3 e 4 0 0 6 2 a 2 b 1 d 2 0 e c 5 2 7 a e 7 9 d 7 1 7 3 4 3 a 5 9 6 6 1 e f 0 f 5 1 8 f d 
 
 Column 1:
-b 0 e 6 e 0 c 1 f 2 2 1 a e 7 b e b 8 5 2 2 c a b 2 8 3 7 0 e 7 1 d 7 6 4 d a 2 f 2 e 7 4 9 5 e 8 c 0 9 1 8 7 0 5 5 e 6 1 a 7 c f 7 c e f 8 4 3 d 2 a f b 1 
+3 9 0 0 f c 6 f 9 e 2 d b a 4 4 d e 8 8 b a e 3 5 f b d f f 7 c c a 6 d e d c 8 8 3 f 8 d 1 7 d 3 c 0 1 c f b e a c 7 f e d d e 9 9 b 4 7 3 4 f 8 b c 8 8 f 
 
 Column 2:
-f 2 6 b c 4 4 e 1 8 7 8 4 9 a 5 6 8 c a b f 1 2 c a 4 9 c d 0 4 c 7 6 6 c 5 9 1 a 0 2 1 7 8 c d 4 c 3 6 2 b 1 7 5 8 a 9 f 2 8 6 a 8 3 b 1 7 d 6 c b 4 b 2 5 
+3 f 1 2 1 6 f e d 4 0 6 0 3 5 9 1 3 e d 6 b b 3 1 6 e c b 2 3 7 3 7 7 2 9 0 d 7 2 d 6 c c 6 3 5 2 2 9 c 5 6 8 2 a 0 e c c 4 2 6 3 a 3 3 7 c 3 4 8 3 8 4 5 6 
 
 Column 3:
-2 2 a f 7 f 9 1 5 f 2 4 3 2 e 8 a 1 2 e 8 b 5 4 9 8 8 b 9 a a 2 8 6 6 6 1 9 1 f f c 2 0 2 d f f 5 7 7 1 0 a 9 9 0 2 7 4 d f 8 b 8 e d 9 8 f 6 1 a f 9 c 8 f 
+1 a 0 c a 3 8 b 7 3 5 7 8 d b 9 1 9 c c 5 c c c 3 c e 0 c d 3 5 2 3 5 0 b 6 b 0 f 3 2 e 7 5 6 2 c 7 c 3 4 6 d 2 3 c 8 5 e a 0 1 e f 3 6 0 7 b d c 5 7 f 9 d 
 
 Column 4:
-3 a 8 4 a b 1 3 9 b 2 2 5 f 1 0 b c 1 f 1 2 a 6 e 8 4 c 8 0 e 7 5 a 0 8 a 1 f 5 6 7 8 e 7 4 3 8 6 0 0 f 1 3 3 3 1 0 d 9 1 d 8 8 2 0 4 4 d c f 8 0 8 6 9 2 f 
+f d 9 b 9 8 e d f c d a d 2 3 0 a 9 f a d 0 6 e a 5 9 8 f 1 f c 4 4 9 9 9 f c e b 0 c 5 2 2 3 8 3 e 4 7 8 e d b 5 6 c 8 6 1 4 9 1 5 d c 0 7 5 6 f 6 8 5 4 8 
 
 Column 5:
-e d 9 7 a 0 1 d f 9 2 2 b 5 9 0 3 f a b a 7 3 8 8 2 6 1 6 6 c 3 d 1 f e b 7 e f 0 c b e 6 8 e 6 4 e b a 0 0 2 0 3 3 3 6 a 0 6 9 2 5 c a 3 2 7 6 c 4 a a 8 b 
+d 9 6 5 1 c a b a 9 7 b 8 d f 8 8 5 c 3 d 4 3 c 2 3 4 e 0 f 2 0 f 1 f 7 a 6 a 1 6 3 7 4 5 3 c 9 f 5 d 1 0 b f 1 2 7 1 a 0 9 c e 1 f 0 2 c 0 f 2 1 b e 7 3 b 
 
 Column 6:
-d 4 e b b 2 0 4 e 8 9 4 5 4 e 1 5 8 1 7 8 8 7 8 0 2 c 2 5 c b e 2 b 4 9 c 9 d d 2 8 4 8 4 3 d 2 c 4 3 0 e 2 6 3 6 5 a b 1 b a 6 d 4 7 d 5 3 0 8 c c 7 4 8 9 
+4 3 8 5 e 9 0 2 f e c 7 f d 6 1 7 4 4 9 6 0 6 2 0 4 6 d d 9 4 8 d f 1 8 1 2 8 9 2 5 f b 8 0 0 7 e 6 d 4 c 8 d 4 0 2 0 c 8 3 b c e 8 6 9 2 6 6 e f b 2 c a 2 
 
 Column 7:
-3 e c 7 9 e c 9 6 7 d c 2 a 5 e d 9 5 6 5 f 2 9 d c b 4 b 5 1 7 2 8 7 e 8 d d 6 f 8 d f c d a e 6 d 2 e 8 3 6 f 0 2 7 6 7 6 d 8 2 3 7 b 7 2 2 e 0 1 6 b 4 f 
+1 8 b 0 9 c c 4 1 d 3 4 9 f 4 9 d 0 3 1 0 f d d 7 e 0 a 9 9 2 a 6 2 c 3 c f 1 e 4 f 7 b c 8 d d 6 e e b a 1 d 2 0 0 3 b 8 7 e 9 e 0 1 4 d 9 a 3 0 2 6 e 5 5 
 
 ==============================
 SUCCESS: Oil fully recovered
@@ -70,97 +70,97 @@ O_rec matches esk->O exactly (624 entries checked).
 P1 slice check: OK
 P2 pre-mutation check: OK
 CORRECTED_KEY (1420 bytes):
-15b2 738a e197 5fa7 8d12 2241 a42c ef65 69de 9bcd 8f2a 93c9 6115 4b30 5dbe 898d
-8bee 051d 508d 10b5 2a96 8c82 ee08 c7f8 bb3c d920 6ecd 13a1 3eba 1a5e a229 99ba
-f70c fd9a e3fb 34e0 a816 9d7b 8938 de49 707a 0347 0c55 ab16 f3ec 7722 1dbb 7f2a
-c814 90e2 8a44 bc6f 6243 0843 0b10 f261 02e2 3728 955d af18 56fe 1917 b8d1 cc08
-2413 f188 8d9b e0f0 171b d39d 93b7 466f 25ee 593c b255 4a44 2ca2 a99c 8a7a 8346
-d890 3902 bb52 5aa7 6108 9d46 22a7 8966 5986 bb91 4dd3 c554 ec0e a390 112f 15de
-ab5e 3be6 6cd1 1074 816a b327 2c16 bdb7 0704 b448 4971 22e1 3db5 a3fb cf13 64d7
-f8cd a566 5732 db62 60c5 68b6 5973 7cdf 22b6 a2e9 2b78 2acc 6bbb 1358 3691 298c
-317b 9f79 a60c 4d72 0237 dd24 6fad 50fa 18d7 6dc4 8a8c d838 d457 e019 0915 c3e4
-09c3 238f 99e4 dd82 68aa 4117 4b4b 64d8 7b77 4471 45cc 9681 b442 7f07 04bd e5ed
-fc80 f1d7 9a91 62c7 ecbd c573 ad7c 3fbc b9c6 e0ec 6729 ee75 fd6e 674b c05e 5ee0
-eeb1 74e1 2871 9b77 819e e9aa 1f92 a044 dc2c 3953 9793 1e00 2c61 fa72 dcfa 031a
-af6b 3ce8 3d56 4898 47e7 b3c0 44e8 567c 6a2b 5293 3554 ed13 97f3 636a aaf6 6be5
-b5ea e754 9ea3 3344 8eb9 1bc3 4ba3 f25a 3508 9ef9 992e aa3f 3cde 2aa2 601b 3c77
-585b 1e14 b21a 6bcb 2af8 6d03 d305 e413 2831 76de b0bb d1ce 7c7f 97d4 3f6a 437c
-08ac 23aa 0692 e70e 1ea8 43a0 bc21 74ad 7e22 f539 3b57 feaf 7ac6 7672 66f6 fe20
-8233 ae12 193d 3443 7313 1d00 743c 1d8a d85b ddf9 3f41 ddcf a27b c406 ebf9 898d
-3783 4f5d fae5 215c f111 b90c bb75 b508 9397 68b8 6941 003e 950d 654e a361 4511
-0849 132a 8573 f152 5321 0094 353e 2d8e deef c0b6 da69 58b1 6268 dfd7 10e7 c8ed
-662a 8706 760e 918a cd29 5470 db0c c25d 9a4b 72f4 9ceb e35b c667 b91b 7797 523c
-80d5 c902 2421 5279 0a01 2e50 df10 3ae7 e137 ba9b 684d 2238 03b7 4b30 541d 494e
-78b8 bb27 0bae 2a82 6c6c 30ba 4569 4d8d 57e9 5809 9260 dabf 7b4a ab96 746d ad1c
-1bea cabc 6aa4 07b8 71a3 474f 3eff 1895 fa49 0008 4a24 8305 4a9b e156 bcda fd16
-e137 fedb 8c9e cfbd 0f05 ad80 5c64 a884 3cb5 524a 6f2e db7f dc84 893b baca 6890
-042c d15f d3be ddb9 3014 9920 2e80 c53c 266d 84ac 291c 15cb 34b7 682d f69c 2f5f
-6d1f 285a 04ac 5a80 0fc7 928b a575 55f9 d5b5 c309 b257 2c92 124b c51d 47e1 f9a6
-502c e76c edd6 9fc6 fdec c669 a5d8 b46e 015a fb87 918b 724a 4305 97c5 109b fa97
-93ae 0783 8e8e 5795 0777 8ceb afd2 a985 1085 73f4 1860 aaa6 e486 af96 4bc4 5ee4
-859f 5d72 a741 65da 1bcf db44 a561 8f6a 0a30 f1ee 5acc d9f2 c40f 5a23 7a03 e7eb
-f119 c373 1cd1 bf5f 7bcf a269 7293 b351 d24f 70e7 f516 39cb f09a 3d96 3178 5b94
-ffc0 6fc2 9999 4efc 4b71 e9fc e596 208a a755 7fa6 99fa 31c4 4864 7ecd e3cf 46ce
-87a6 3f1a d5c1 0b15 28c2 7e69 9e7f c798 57e4 d49b 56ea b6af 5bad 4830 5095 bb2a
-53b4 8093 8284 e782 4a7c 45c1 af47 b4b0 cc1f 1895 e99e 0120 6a94 92c9 0e0f 9a3e
-20d4 0c6a 8113 a2a0 e3f6 4190 3f5e 04ed dde9 2ffd a090 dfbf aabf 7726 024a 822c
-e89c 0177 dd8e b0d4 d595 ea08 427e f201 c8fc 9ee6 c94f cacc 9338 8c8b a6d6 bdfc
-70a0 fbc3 9c72 1d86 6dbf 27fd 7333 5da6 cee7 82d4 45fb 2085 5732 f9af 772c d563
-c149 00e1 3fc5 0fdf 5434 97a5 ece3 8bee 5a96 0340 2bd9 c20c 5068 83e8 da80 af5a
-7ec9 a3a1 cdb1 41ea 3de9 f284 7cd7 feee 3caf efa8 5f99 fefe 2923 940b 3259 30c5
-d858 b488 d94b c20c 9da3 62cd 7df8 8d46 083d 4acb eb1a 7c1b 688d 3b4d 7dde e9b9
-3b6f 4f97 dc35 5b87 9868 f53c 312b d8b4 3577 c8d2 d2a5 1863 a68b e3b4 20da e88f
-5bdc e7b1 a7e2 dc85 a0be f052 5f1c 343b ff88 87cb 6351 7b74 e1b4 cdcd df3f 6d1b
-c93e 7d6c 7917 351c abeb 8117 2b80 f1fb 1a1a 3887 99c3 5e13 5987 9ecc bf80 8c95
-9366 fabc 6e9a a135 1a8f 8aa2 9b9d c7d3 61d3 8566 b6fc 11a1 980f 7d67 210a c949
-c5c6 db04 72c1 c64a 90d7 6294 ff20 b40e d4d2 194d bfc7 7d54 0c87 03ff b2e8 8aac
-9f71 a36c 2baf e580 a502 c19d 
-P3_upper (pre-pack) MISMATCH: 180 / 180 limbs differ, first at limb 0 (computed=0xc9932a8fcd9bde69, genuine=0xded252e414afc070)
+4cdc fa02 884f c36e cb52 f41e dd74 20ce 96ba 1682 4127 0bdb 72c3 b0a9 2008 c561
+ceaf 8308 6a29 b2cb 050b bc69 c94a 3348 0c0d 09ff b159 6c00 6d10 8f8a a2c0 2714
+2103 d285 3045 c6d1 1a7e 918b daa0 3122 2d89 72fe 667c 3b16 9f50 3789 a3bc e85a
+8f5f 37fc 533a 06f7 3ccf 2036 0bfe d12f cb90 6ab9 513c 2212 be21 db49 1a8b d805
+5942 c6b1 d179 f55a ded0 5685 b9c5 404b 92fb 9428 5f90 c9a9 2a0e 7d22 d241 a091
+595b 07bc 7cf8 1039 0e3b f7c6 d7ca 3278 9a23 0c94 e077 78d8 48c2 ef9a b6a6 1be4
+e0a8 f3f9 fbfd 309e f29d a317 8734 10a2 0bc9 dec4 3542 80de f4be 3ebb b11b 74d9
+814e 2bfb d7e0 c203 a18b de5c 38e6 d88c 51f8 1f60 a17e 03c4 b911 bb61 32a0 d07c
+37d8 b2f2 5d64 8d30 8a28 6db3 d824 fb41 88d9 a592 5ec5 d69a 48cd 7dda d25b 642a
+2537 cf31 63e2 cc80 ce51 2035 e8cc 2a60 6e9d 2937 4815 2211 b873 e876 e85f c7d5
+868b 48e2 06f8 d5f4 a486 74b6 4a51 926e e619 1194 a272 5640 2b70 abda 556c 42f7
+8e39 e290 ffee 1dd9 d36d 2c7d 4616 fde3 5795 e988 beac dd22 5a6a 0342 a259 5cc9
+774a 786b 4857 00d0 fb56 f38c 475d 11ce e88b 331f f586 3b39 c7c7 2950 3618 a876
+8deb 54a2 65ee d9c1 2a03 265d 7b00 adbf 143b 33a1 95a8 c034 4b6e 1f0b 41b5 3146
+d629 ca27 e7a0 06e6 2e77 1c3f 6d00 d023 b314 7604 1186 fa8e f745 3fe5 324b ca65
+45d3 9f80 49e4 de99 a518 0819 20a8 377d a7bf 923b 4d78 3f70 f86d c58c a90d 74cd
+8ecd ec26 19c8 663c a60f 1087 8cc6 1001 14bc 1036 bc89 b9f9 d756 92fe 7a0a 79e7
+79c3 ec3c 072e 4bbc 3dfa 5a31 756d c64e 3382 b361 773c 917e 5cf2 6b67 ad2c ec33
+158c 350a de22 6098 c610 2528 af8c 1fcb 12f0 42eb 65a5 b23c c651 506d 038c 2a9d
+d2be c8e3 ac20 4c30 75af f2af bbd7 ce01 016e 7816 7c24 728d 5e14 60cc 3266 d8a3
+9d8e 2e7c c67c 5e23 e04a ac6f 3e83 a1bc 85a2 86c5 edfa a72e e2e7 9830 28a6 a475
+876b d7a6 450b e03c 4461 8e71 d390 6016 fefe 7b2b 7074 5597 e960 f616 9101 3039
+fecb 396f 1547 a211 4bf9 8e38 14dd aa42 305c a95e 4d9c d3da 7461 0ed8 ce2e 8a2e
+21d0 88e9 d3b4 db39 4fb8 c37e 4061 4240 2f4b 7d07 bd09 cd42 7630 8df5 decc 28f2
+9200 0dd4 372a c6cd 5f04 a72d ae6c b5ff 5d70 8ff6 e56e 623e fa49 c18a db4f 0057
+2649 6c12 7f3f c935 21fc 540e 983b 59c5 150d e7e8 a140 b7f1 a4ea e070 8ee6 15df
+8b4a 3eeb d978 6019 2c9b c974 fdd9 ad4b ef86 1842 5999 9d2b 867a 8991 acee 9145
+29dc c46d ddd6 d428 3422 3ed2 f066 b683 bed3 3f5f eae4 6927 4597 1f95 ffa6 2f4c
+99b9 f79c dcea 6847 1951 458b b204 d50d 9b23 4f90 73ad 35f4 c105 ff0a e49c 3ee3
+5da1 45d9 e5d2 aef6 f5a4 8f5f 19d3 f297 db6d 9ac6 d4cb 3043 4a71 a15f f8ec 98cb
+7d39 edb2 4c2d 3bbd c005 c5d4 9823 e2a8 28f7 066a dfb7 c5f0 c3d5 21c9 84b4 56e4
+248a 5231 0845 e345 24b4 0af6 92f4 0591 8513 1ca8 260f d81d 0186 c432 4ee7 11bb
+2f4a 45a6 55ad 4acd 1a97 a3c2 b903 7c61 e652 5c5b a3ae d0f3 e2e7 eee3 a246 dc91
+0218 1b32 61bd 0122 7eac 6318 9f51 83bd 76dc 75ee 06f2 a354 d045 c09e 0f7a debd
+aefc efa1 db39 9e30 46f5 e46b 3170 5815 58ef c5b4 5613 70d3 d3e9 cbfe 6a85 d7d4
+b2ec 2ad4 c155 d9f3 480b 905f 72bd cb16 776d b34c 754e b277 94d6 b5ee 98fd 02ab
+4cc9 529a 9ae2 dddf 98a1 c251 75d3 3303 fed8 ad63 31da dea1 7acf e77a b4bf e37e
+afb4 33bd 8f6c 6c8c d7f6 6e27 afd4 f18e a474 73ce 5555 cac4 04f9 87a6 021c d701
+3bbd fdc0 726f e077 4285 a8eb b58b c27c 3f29 d651 e123 0eb6 23da 7e93 a798 7af8
+aaf4 9cba 80a7 9b83 16ea 8602 4d25 68ba 5178 27c3 3ebd 2a0f 3093 a631 f751 91cb
+3317 ae4a 436b 19e7 c4f1 c148 582f 0e4a 8fa7 27bb 4b82 659a c485 d2ab e002 42e0
+e151 b559 ec31 f96e 2d0c 273a afbc 7ea6 11ac 623e 4651 ade1 6210 7b39 1e33 1441
+b47d 68ef 5e61 704e 403d e462 2410 d4b7 1bad 0cb2 a9cb 2bd8 baaf cf19 46fa d2ae
+8468 d17d b3e4 6c80 be64 7d88 e388 39fa 6ae1 be39 aced b188 2639 f0df 925a fa18
+e719 1c2b ab82 9e9c ff88 9580 
+P3_upper (pre-pack) MISMATCH: 180 / 180 limbs differ, first at limb 0 (computed=0xdb0b27418216ba96, genuine=0xb97aa5604ec2872e)
 FAIL: rebuilt public key differs from the real public key.
-First differing byte at offset 16 (real=0x70, rebuilt=0x69)
+First differing byte at offset 16 (real=0x2e, rebuilt=0x96)
 ACTUAL_KEY (1420 bytes):
-15b2 738a e197 5fa7 8d12 2241 a42c ef65 69de 9bcd 8f2a 93c9 6115 4b30 5dbe 898d
-8bee 051d 508d 10b5 2a96 8c82 ee08 c7f8 bb3c d920 6ecd 13a1 3eba 1a5e a229 99ba
-f70c fd9a e3fb 34e0 a816 9d7b 8938 de49 707a 0347 0c55 ab16 f3ec 7722 1dbb 7f2a
-c814 90e2 8a44 bc6f 6243 0843 0b10 f261 02e2 3728 955d af18 56fe 1917 b8d1 cc08
-2413 f188 8d9b e0f0 171b d39d 93b7 466f 25ee 593c b255 4a44 2ca2 a99c 8a7a 8346
-d890 3902 bb52 5aa7 6108 9d46 22a7 8966 5986 bb91 4dd3 c554 ec0e a390 112f 15de
-ab5e 3be6 6cd1 1074 816a b327 2c16 bdb7 0704 b448 4971 22e1 3db5 a3fb cf13 64d7
-f8cd a566 5732 db62 60c5 68b6 5973 7cdf 22b6 a2e9 2b78 2acc 6bbb 1358 3691 298c
-317b 9f79 a60c 4d72 0237 dd24 6fad 50fa 18d7 6dc4 8a8c d838 d457 e019 0915 c3e4
-09c3 238f 99e4 dd82 68aa 4117 4b4b 64d8 7b77 4471 45cc 9681 b442 7f07 04bd e5ed
-fc80 f1d7 9a91 62c7 ecbd c573 ad7c 3fbc b9c6 e0ec 6729 ee75 fd6e 674b c05e 5ee0
-eeb1 74e1 2871 9b77 819e e9aa 1f92 a044 dc2c 3953 9793 1e00 2c61 fa72 dcfa 031a
-af6b 3ce8 3d56 4898 47e7 b3c0 44e8 567c 6a2b 5293 3554 ed13 97f3 636a aaf6 6be5
-b5ea e754 9ea3 3344 8eb9 1bc3 4ba3 f25a 3508 9ef9 992e aa3f 3cde 2aa2 601b 3c77
-585b 1e14 b21a 6bcb 2af8 6d03 d305 e413 2831 76de b0bb d1ce 7c7f 97d4 3f6a 437c
-08ac 23aa 0692 e70e 1ea8 43a0 bc21 74ad 7e22 f539 3b57 feaf 7ac6 7672 66f6 fe20
-8233 ae12 193d 3443 7313 1d00 743c 1d8a d85b ddf9 3f41 ddcf a27b c406 ebf9 898d
-3783 4f5d fae5 215c f111 b90c bb75 b508 9397 68b8 6941 003e 950d 654e a361 4511
-0849 132a 8573 f152 5321 0094 353e 2d8e deef c0b6 da69 58b1 6268 dfd7 10e7 c8ed
-662a 8706 760e 918a cd29 5470 db0c c25d 9a4b 72f4 9ceb e35b c667 b91b 7797 523c
-80d5 c902 2421 5279 0a01 2e50 df10 3ae7 e137 ba9b 684d 2238 03b7 4b30 541d 494e
-78b8 bb27 0bae 2a82 6c6c 30ba 4569 4d8d 57e9 5809 9260 dabf 7b4a ab96 746d ad1c
-1bea cabc 6aa4 07b8 71a3 474f 3eff 1895 fa49 0008 4a24 8305 4a9b e156 bcda fd16
-e137 fedb 8c9e cfbd 0f05 ad80 5c64 a884 3cb5 524a 6f2e db7f dc84 893b baca 6890
-042c d15f d3be ddb9 3014 9920 2e80 c53c 266d 84ac 291c 15cb 34b7 682d f69c 2f5f
-6d1f 285a 04ac 5a80 0fc7 928b a575 55f9 d5b5 c309 b257 2c92 124b c51d 47e1 f9a6
-502c e76c edd6 9fc6 fdec c669 a5d8 b46e 015a fb87 918b 724a 4305 97c5 109b fa97
-93ae 0783 8e8e 5795 0777 8ceb afd2 a985 1085 73f4 1860 aaa6 e486 af96 4bc4 5ee4
-859f 5d72 a741 65da 1bcf db44 a561 8f6a 0a30 f1ee 5acc d9f2 c40f 5a23 7a03 e7eb
-f119 c373 1cd1 bf5f 7bcf a269 7293 b351 d24f 70e7 f516 39cb f09a 3d96 3178 5b94
-ffc0 6fc2 9999 4efc 4b71 e9fc e596 208a a755 7fa6 99fa 31c4 4864 7ecd e3cf 46ce
-87a6 3f1a d5c1 0b15 28c2 7e69 9e7f c798 57e4 d49b 56ea b6af 5bad 4830 5095 bb2a
-53b4 8093 8284 e782 4a7c 45c1 af47 b4b0 cc1f 1895 e99e 0120 6a94 92c9 0e0f 9a3e
-20d4 0c6a 8113 a2a0 e3f6 4190 3f5e 04ed dde9 2ffd a090 dfbf aabf 7726 024a 822c
-e89c 0177 dd8e b0d4 d595 ea08 427e f201 c8fc 9ee6 c94f cacc 9338 8c8b a6d6 bdfc
-70a0 fbc3 9c72 1d86 6dbf 27fd 7333 5da6 cee7 82d4 45fb 2085 5732 f9af 772c d563
-c149 00e1 3fc5 0fdf 5434 97a5 ece3 8bee 5a96 0340 2bd9 c20c 5068 83e8 da80 af5a
-7ec9 a3a1 cdb1 41ea 3de9 f284 7cd7 feee 3caf efa8 5f99 fefe 2923 940b 3259 30c5
-d858 b488 d94b c20c 9da3 62cd 7df8 8d46 083d 4acb eb1a 7c1b 688d 3b4d 7dde e9b9
-3b6f 4f97 dc35 5b87 9868 f53c 312b d8b4 3577 c8d2 d2a5 1863 a68b e3b4 20da e88f
-5bdc e7b1 a7e2 dc85 a0be f052 5f1c 343b ff88 87cb 6351 7b74 e1b4 cdcd df3f 6d1b
-c93e 7d6c 7917 351c abeb 8117 2b80 f1fb 1a1a 3887 99c3 5e13 5987 9ecc bf80 8c95
-9366 fabc 6e9a a135 1a8f 8aa2 9b9d c7d3 61d3 8566 b6fc 11a1 980f 7d67 210a c949
-c5c6 db04 72c1 c64a 90d7 6294 ff20 b40e d4d2 194d bfc7 7d54 0c87 03ff b2e8 8aac
-9f71 a36c 2baf e580 a502 c19d 
+4cdc fa02 884f c36e cb52 f41e dd74 20ce 96ba 1682 4127 0bdb 72c3 b0a9 2008 c561
+ceaf 8308 6a29 b2cb 050b bc69 c94a 3348 0c0d 09ff b159 6c00 6d10 8f8a a2c0 2714
+2103 d285 3045 c6d1 1a7e 918b daa0 3122 2d89 72fe 667c 3b16 9f50 3789 a3bc e85a
+8f5f 37fc 533a 06f7 3ccf 2036 0bfe d12f cb90 6ab9 513c 2212 be21 db49 1a8b d805
+5942 c6b1 d179 f55a ded0 5685 b9c5 404b 92fb 9428 5f90 c9a9 2a0e 7d22 d241 a091
+595b 07bc 7cf8 1039 0e3b f7c6 d7ca 3278 9a23 0c94 e077 78d8 48c2 ef9a b6a6 1be4
+e0a8 f3f9 fbfd 309e f29d a317 8734 10a2 0bc9 dec4 3542 80de f4be 3ebb b11b 74d9
+814e 2bfb d7e0 c203 a18b de5c 38e6 d88c 51f8 1f60 a17e 03c4 b911 bb61 32a0 d07c
+37d8 b2f2 5d64 8d30 8a28 6db3 d824 fb41 88d9 a592 5ec5 d69a 48cd 7dda d25b 642a
+2537 cf31 63e2 cc80 ce51 2035 e8cc 2a60 6e9d 2937 4815 2211 b873 e876 e85f c7d5
+868b 48e2 06f8 d5f4 a486 74b6 4a51 926e e619 1194 a272 5640 2b70 abda 556c 42f7
+8e39 e290 ffee 1dd9 d36d 2c7d 4616 fde3 5795 e988 beac dd22 5a6a 0342 a259 5cc9
+774a 786b 4857 00d0 fb56 f38c 475d 11ce e88b 331f f586 3b39 c7c7 2950 3618 a876
+8deb 54a2 65ee d9c1 2a03 265d 7b00 adbf 143b 33a1 95a8 c034 4b6e 1f0b 41b5 3146
+d629 ca27 e7a0 06e6 2e77 1c3f 6d00 d023 b314 7604 1186 fa8e f745 3fe5 324b ca65
+45d3 9f80 49e4 de99 a518 0819 20a8 377d a7bf 923b 4d78 3f70 f86d c58c a90d 74cd
+8ecd ec26 19c8 663c a60f 1087 8cc6 1001 14bc 1036 bc89 b9f9 d756 92fe 7a0a 79e7
+79c3 ec3c 072e 4bbc 3dfa 5a31 756d c64e 3382 b361 773c 917e 5cf2 6b67 ad2c ec33
+158c 350a de22 6098 c610 2528 af8c 1fcb 12f0 42eb 65a5 b23c c651 506d 038c 2a9d
+d2be c8e3 ac20 4c30 75af f2af bbd7 ce01 016e 7816 7c24 728d 5e14 60cc 3266 d8a3
+9d8e 2e7c c67c 5e23 e04a ac6f 3e83 a1bc 85a2 86c5 edfa a72e e2e7 9830 28a6 a475
+876b d7a6 450b e03c 4461 8e71 d390 6016 fefe 7b2b 7074 5597 e960 f616 9101 3039
+fecb 396f 1547 a211 4bf9 8e38 14dd aa42 305c a95e 4d9c d3da 7461 0ed8 ce2e 8a2e
+21d0 88e9 d3b4 db39 4fb8 c37e 4061 4240 2f4b 7d07 bd09 cd42 7630 8df5 decc 28f2
+9200 0dd4 372a c6cd 5f04 a72d ae6c b5ff 5d70 8ff6 e56e 623e fa49 c18a db4f 0057
+2649 6c12 7f3f c935 21fc 540e 983b 59c5 150d e7e8 a140 b7f1 a4ea e070 8ee6 15df
+8b4a 3eeb d978 6019 2c9b c974 fdd9 ad4b ef86 1842 5999 9d2b 867a 8991 acee 9145
+29dc c46d ddd6 d428 3422 3ed2 f066 b683 bed3 3f5f eae4 6927 4597 1f95 ffa6 2f4c
+99b9 f79c dcea 6847 1951 458b b204 d50d 9b23 4f90 73ad 35f4 c105 ff0a e49c 3ee3
+5da1 45d9 e5d2 aef6 f5a4 8f5f 19d3 f297 db6d 9ac6 d4cb 3043 4a71 a15f f8ec 98cb
+7d39 edb2 4c2d 3bbd c005 c5d4 9823 e2a8 28f7 066a dfb7 c5f0 c3d5 21c9 84b4 56e4
+248a 5231 0845 e345 24b4 0af6 92f4 0591 8513 1ca8 260f d81d 0186 c432 4ee7 11bb
+2f4a 45a6 55ad 4acd 1a97 a3c2 b903 7c61 e652 5c5b a3ae d0f3 e2e7 eee3 a246 dc91
+0218 1b32 61bd 0122 7eac 6318 9f51 83bd 76dc 75ee 06f2 a354 d045 c09e 0f7a debd
+aefc efa1 db39 9e30 46f5 e46b 3170 5815 58ef c5b4 5613 70d3 d3e9 cbfe 6a85 d7d4
+b2ec 2ad4 c155 d9f3 480b 905f 72bd cb16 776d b34c 754e b277 94d6 b5ee 98fd 02ab
+4cc9 529a 9ae2 dddf 98a1 c251 75d3 3303 fed8 ad63 31da dea1 7acf e77a b4bf e37e
+afb4 33bd 8f6c 6c8c d7f6 6e27 afd4 f18e a474 73ce 5555 cac4 04f9 87a6 021c d701
+3bbd fdc0 726f e077 4285 a8eb b58b c27c 3f29 d651 e123 0eb6 23da 7e93 a798 7af8
+aaf4 9cba 80a7 9b83 16ea 8602 4d25 68ba 5178 27c3 3ebd 2a0f 3093 a631 f751 91cb
+3317 ae4a 436b 19e7 c4f1 c148 582f 0e4a 8fa7 27bb 4b82 659a c485 d2ab e002 42e0
+e151 b559 ec31 f96e 2d0c 273a afbc 7ea6 11ac 623e 4651 ade1 6210 7b39 1e33 1441
+b47d 68ef 5e61 704e 403d e462 2410 d4b7 1bad 0cb2 a9cb 2bd8 baaf cf19 46fa d2ae
+8468 d17d b3e4 6c80 be64 7d88 e388 39fa 6ae1 be39 aced b188 2639 f0df 925a fa18
+e719 1c2b ab82 9e9c ff88 9580 
