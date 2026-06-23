@@ -31,6 +31,7 @@ static
 inline void m_vec_mul_add (int m_vec_limbs, const uint64_t *in, unsigned char a, uint64_t *acc) {
     (void) m_vec_limbs;
     uint32_t tab = mul_table(a);
+
     uint64_t lsb_ask = 0x1111111111111111ULL;
 
     for(int i=0; i < M_VEC_LIMBS_MAX ;i++){

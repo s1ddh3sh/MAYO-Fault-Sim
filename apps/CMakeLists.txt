@@ -52,6 +52,20 @@ else()
     endforeach()
 endif()
 
+## Solver for P3_fault
+if (ENABLE_PARAMS_DYNAMIC)
+    add_executable(solver solver.c)
+    target_link_libraries(solver PRIVATE mayo)
+    target_include_directories(solver PRIVATE ../include)
+else()
+    foreach(MVARIANT ${MVARIANT_S})
+        string(TOLOWER ${MVARIANT} MVARIANT_LOWER)
+        add_executable(solver_${MVARIANT_LOWER} solver.c)
+        target_link_libraries(solver_${MVARIANT_LOWER} PRIVATE ${MVARIANT_LOWER})
+        target_include_directories(solver_${MVARIANT_LOWER} PRIVATE ../include ../src/common ../src/generic)
+        target_compile_definitions(solver_${MVARIANT_LOWER} PRIVATE MAYO_VARIANT=${MVARIANT})
+    endforeach()
+endif()
 
 
 ## Examples with NIST API
