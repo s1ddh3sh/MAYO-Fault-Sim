@@ -1,13 +1,20 @@
-// solver_standalone.c
 #include <inttypes.h>
 #include <mayo.h>
-#include <simple_arithmetic.h>
-#include <generic_arithmetic.h>
+
+#include <aes_ctr.h>
 #include <arithmetic.h>
+#include <fips202.h>
+#include <mem.h>
+#include <randombytes.h>
+#include <simple_arithmetic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define MAX_UNK 7000
+#define MAX_EQ 6000
+#define PK_PRF AES_128_CTR
 
 // ---------------- GF(16) arithmetic ----------------
 
@@ -212,26 +219,6 @@ static void pack_m_vecs(const uint64_t *in, unsigned char *out, int vecs,
   }
 }
 
-void m_upper(const mayo_params_t *p, const uint64_t *in, uint64_t *out,
-             int size) {
-  // #ifndef ENABLE_PARAMS_DYNAMIC
-  //   (void)p;
-  // #endif
-  // Look into AVX2'ing this
-  const int m_vec_limbs = PARAM_m_vec_limbs(p);
-  int m_vecs_stored = 0;
-  for (int r = 0; r < size; r++) {
-    for (int c = r; c < size; c++) {
-      m_vec_copy(m_vec_limbs, in + m_vec_limbs * (r * size + c),
-                 out + m_vec_limbs * m_vecs_stored);
-      if (r != c) {
-        m_vec_add(m_vec_limbs, in + m_vec_limbs * (c * size + r),
-                  out + m_vec_limbs * m_vecs_stored);
-      }
-      m_vecs_stored++;
-    }
-  }
-}
 static void rebuild_pk_from_recovered_O(
     const mayo_params_t *p, const uint64_t *epk, const sk_t *esk,
     const unsigned char
@@ -253,28 +240,28 @@ static void rebuild_pk_from_recovered_O(
     for (int k = 0; k < v; k++)
       O_rec[k * o + i] = recovered_x[i * v + k] & 0xF;
 
-  int o_mismatches = 0;
-  int first_o_mismatch = -1;
-  for (int k = 0; k < v; k++) {
-    for (int i = 0; i < o; i++) {
-      int idx = k * o + i;
-      unsigned char rec_val = O_rec[idx] & 0xF;
-      unsigned char real_val = esk->O[idx] & 0xF;
-      if (rec_val != real_val) {
-        o_mismatches++;
-        if (first_o_mismatch == -1)
-          first_o_mismatch = idx;
-      }
-    }
-  }
-  if (o_mismatches == 0)
-    printf("O_rec matches esk->O exactly (%d entries checked).\n", v * o);
-  else
-    printf("O_rec MISMATCH: %d / %d entries differ, first at index %d "
-           "(k=%d,i=%d) rec=0x%x real=0x%x\n",
-           o_mismatches, v * o, first_o_mismatch, first_o_mismatch / o,
-           first_o_mismatch % o, O_rec[first_o_mismatch] & 0xF,
-           esk->O[first_o_mismatch] & 0xF);
+  // int o_mismatches = 0;
+  // int first_o_mismatch = -1;
+  // for (int k = 0; k < v; k++) {
+  //   for (int i = 0; i < o; i++) {
+  //     int idx = k * o + i;
+  //     unsigned char rec_val = O_rec[idx] & 0xF;
+  //     unsigned char real_val = esk->O[idx] & 0xF;
+  //     if (rec_val != real_val) {
+  //       o_mismatches++;
+  //       if (first_o_mismatch == -1)
+  //         first_o_mismatch = idx;
+  //     }
+  //   }
+  // }
+  // if (o_mismatches == 0)
+  //   printf("O_rec matches esk->O exactly (%d entries checked).\n", v * o);
+  // else
+  //   printf("O_rec MISMATCH: %d / %d entries differ, first at index %d "
+  //          "(k=%d,i=%d) rec=0x%x real=0x%x\n",
+  //          o_mismatches, v * o, first_o_mismatch, first_o_mismatch / o,
+  //          first_o_mismatch % o, O_rec[first_o_mismatch] & 0xF,
+  //          esk->O[first_o_mismatch] & 0xF);
 
   // ---- Single contiguous P buffer, exactly like mayo_keypair_compact ----
   uint64_t *P =
@@ -307,8 +294,8 @@ static void rebuild_pk_from_recovered_O(
   compute_P3_correct(p, P1, P2, O_rec, P3);
   unsigned char *rebuilt_pk = calloc(1, real_pk_len);
 
-  memcpy(rebuilt_pk, real_pk, param_pk_seed_bytes);
-  memcpy(seed_pk, real_pk, param_pk_seed_bytes);
+  memcpy(rebuilt_pk, seed_pk, param_pk_seed_bytes);
+  // memcpy(seed_pk, real_pk, param_pk_seed_bytes);
 
   uint64_t P3_upper[P3_LIMBS_MAX];
   // memset(P3_upper, 0, sizeof(P3_upper));
@@ -350,23 +337,25 @@ static void rebuild_pk_from_recovered_O(
   //   printf("Recomputing public key from recovered O\n");
   //   printf("==============================\n");
 
-  int diff = memcmp(rebuilt_pk, real_pk, real_pk_len);
+  // int diff = memcmp(rebuilt_pk, real_pk, real_pk_len);
 
-  if (diff == 0) {
-    printf("SUCCESS: rebuilt public key matches the real public key.\n");
-  } else {
-    printf("FAIL: rebuilt public key differs from the real public key.\n");
+  // if (diff == 0) {
+  //   printf("SUCCESS: rebuilt public key matches the real public key.\n");
+  // } else {
+  //   printf("FAIL: rebuilt public key differs from the real public key.\n");
 
-    int first_mismatch = -1;
-    for (int i = 0; i < real_pk_len; i++) {
-      if (rebuilt_pk[i] != real_pk[i]) {
-        first_mismatch = i;
-        break;
-      }
-    }
-    printf("First differing byte at offset %d (real=0x%02x, rebuilt=0x%02x)\n",
-           first_mismatch, real_pk[first_mismatch], rebuilt_pk[first_mismatch]);
-  }
+  //   int first_mismatch = -1;
+  //   for (int i = 0; i < real_pk_len; i++) {
+  //     if (rebuilt_pk[i] != real_pk[i]) {
+  //       first_mismatch = i;
+  //       break;
+  //     }
+  //   }
+  //   printf("First differing byte at offset %d (real=0x%02x,
+  //   rebuilt=0x%02x)\n",
+  //          first_mismatch, real_pk[first_mismatch],
+  //          rebuilt_pk[first_mismatch]);
+  // }
 
   free(O_rec);
   free(P);
@@ -378,7 +367,7 @@ int main(int argc, char *argv[]) {
   // faulted_pk  = PK from run where P1_times_O was skipped
   // normal_pk   = PK from a normal (unfaulted) run, to verify recovery
   if (argc < 2) {
-    fprintf(stderr, "Usage: %s <faulted_pk_hex> [normal_pk_hex]\n", argv[0]);
+    fprintf(stderr, "Usage: %s <faulted_pk_hex>\n", argv[0]);
     return 1;
   }
 
@@ -399,7 +388,8 @@ int main(int argc, char *argv[]) {
   // Expand the faulted PK into epk (same layout as mayo_expand_pk)
   uint64_t *epk = calloc(1, sizeof(pk_t));
   mayo_expand_pk(p, faulted_pk, epk);
-
+  uint64_t *epk_original = malloc(sizeof(pk_t));
+  memcpy(epk_original, epk, sizeof(pk_t));
   // ---- Extract dimensions ----
   int v = PARAM_v(p);
   int o = PARAM_o(p);
@@ -449,24 +439,78 @@ int main(int argc, char *argv[]) {
   int rank = solve_linear_system(A, b, x, equations, unknowns);
   fprintf(stderr, "System rank = %d / %d\n", rank, unknowns);
 
+  unsigned char *O_rec = calloc((size_t)v * o, 1);
+  for (int i = 0; i < o; i++)
+    for (int k = 0; k < v; k++)
+      O_rec[k * o + i] = x[i * v + k] & 0xF;
+
+  for (int i = 0; i < o; i++) {
+    printf("\nColumn %d:\n", i);
+    for (int k = 0; k < v; k++) {
+      printf("%x ", O_rec[k * o + i]);
+    }
+    printf("\n");
+  }
+  int param_pk_seed_bytes = PARAM_pk_seed_bytes(p);
+
+  unsigned char *seed_pk = calloc(param_pk_seed_bytes, 1);
+  memcpy(seed_pk, faulted_pk, param_pk_seed_bytes);
+  dump_hex("seed_pk", seed_pk, param_pk_seed_bytes);
+
+  unsigned char *cpk = calloc(PARAM_cpk_bytes(p), 1);
+  {
+    // uint64_t P[P1_LIMBS_MAX + P2_LIMBS_MAX];
+
+    int param_P1_limbs = PARAM_P1_limbs(p);
+    uint64_t *P1 = epk;
+    uint64_t *P2 = epk + param_P1_limbs;
+    uint64_t P3[O_MAX * O_MAX * M_VEC_LIMBS_MAX] = {0};
+    const int param_o = PARAM_o(p);
+    const int param_m = PARAM_m(p);
+    int param_P3_limbs = PARAM_P3_limbs(p);
+
+    // expand_P1_P2(p, P, seed_pk);
+    compute_P3_correct(p, P1, P2, O_rec, P3);
+
+    // store seed_pk in cpk
+    memcpy(cpk, seed_pk, param_pk_seed_bytes);
+
+    uint64_t P3_upper[P3_LIMBS_MAX];
+
+    m_upper(p, P3, P3_upper, param_o);
+    pack_m_vecs(P3_upper, cpk + param_pk_seed_bytes,
+                param_P3_limbs / m_vec_limbs, param_m);
+
+    // dump_hex("CORRECTED_pk_seed", cpk, param_pk_seed_bytes);
+
+    // dump_hex("CORRECTED_ENCODED_P3", cpk + param_pk_seed_bytes,
+    //          PARAM_cpk_bytes(p) - param_pk_seed_bytes);
+
+    dump_hex("ACTUAL_KEY", cpk, PARAM_cpk_bytes(p));
+  }
+
   // ---- Output recovered O as hex on stdout ----
   // Format: one nibble per GF(16) element, row-major x[i*v+k]
-  printf("RECOVERED_O:");
-  for (int i = 0; i < unknowns; i++)
-    printf("%01x", x[i] & 0xF);
-  printf("\n");
-
+  for (int i = 0; i < o; i++) {
+    printf("\nColumn %d:\n", i);
+    for (int k = 0; k < v; k++) {
+      printf("%x ", O_rec[k * o + i]);
+    }
+    printf("\n");
+  }
+  rebuild_pk_from_recovered_O(p, epk_original, NULL, x, cpk, cpk_bytes, seed_pk);
   // ---- If a normal PK was supplied, rebuild and compare ----
   if (argc >= 3) {
     unsigned char *normal_pk = calloc(1, cpk_bytes);
     if (hex2bytes(argv[2], normal_pk, cpk_bytes) == cpk_bytes) {
       unsigned char seed_pk[16];
-      rebuild_pk_from_recovered_O(p, epk, NULL, x, normal_pk, cpk_bytes,
+      rebuild_pk_from_recovered_O(p, epk, NULL, x, faulted_pk, cpk_bytes,
                                   seed_pk);
     }
     free(normal_pk);
   }
 
+  free(O_rec);
   free(faulted_pk);
   free(epk);
   free(P3_full);
