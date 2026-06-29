@@ -17,10 +17,6 @@
 #define MAX_EQ 6000
 #define PK_PRF AES_128_CTR
 
-unsigned char seed_sk_fixed[24] = {
-    0x9a, 0xf8, 0xcb, 0x5c, 0xb5, 0xb7, 0xb1, 0x2c, 0x7a, 0x15, 0xac, 0x4e,
-    0x0a, 0x26, 0xae, 0x99, 0x6c, 0x6c, 0xf8, 0x9a, 0x95, 0xb5, 0xfb, 0x64};
-
 // ---------------- GF(16) arithmetic ----------------
 
 static unsigned char gf_add(unsigned char a, unsigned char b) {
@@ -427,14 +423,14 @@ static void example_fault_P3_OtP2(const mayo_params_t *p) {
   int m_vec_limbs = PARAM_m_vec_limbs(p);
 
   unsigned char *pk = calloc(1, PARAM_cpk_bytes(p));
-  unsigned char *sk = seed_sk_fixed;
+  unsigned char *sk = calloc(1, PARAM_csk_bytes(p));
   sk_t *esk = calloc(1, sizeof(sk_t));
   uint64_t *epk = calloc(1, sizeof(pk_t));
 
   mayo_keypair(p, pk, sk);
   mayo_expand_sk(p, sk, esk);
   mayo_expand_pk(p, pk, epk);
-  dump_hex("pk", pk, PARAM_cpk_bytes(p));
+
   uint64_t *P3_upper = (uint64_t *)(pk + PARAM_pk_seed_bytes(p));
   if (memcmp(P3_upper, epk + PARAM_P1_limbs(p) + PARAM_P2_limbs(p),
              PARAM_P3_bytes(p))) {
@@ -605,7 +601,7 @@ static void example_fault_P3_OtP2(const mayo_params_t *p) {
          res == MAYO_OK ? "PASS" : "FAIL");
   free(sig);
   free(pk);
-  // mayo_secure_free(sk, PARAM_csk_bytes(p));
+  mayo_secure_free(sk, PARAM_csk_bytes(p));
   free(esk);
   free(epk);
   free(P3_full);

@@ -9,6 +9,7 @@
 #include <fips202.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdalign.h>
 #ifdef ENABLE_CT_TESTING
 #include <valgrind/memcheck.h>
@@ -566,14 +567,14 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
     uint64_t *P2 = P + param_P1_limbs;
 
     // seed_sk $←- B^(sk_seed bytes)
-    #if defined(PQM4) || defined(HAVE_RANDOMBYTES_NORETVAL)
-    randombytes(seed_sk, param_sk_seed_bytes);
-    #else
-    if (randombytes(seed_sk, param_sk_seed_bytes) != MAYO_OK) {
-        ret = MAYO_ERR;
-        goto err;
-    }
-    #endif
+    // #if defined(PQM4) || defined(HAVE_RANDOMBYTES_NORETVAL)
+    // randombytes(seed_sk, param_sk_seed_bytes);
+    // #else
+    // if (randombytes(seed_sk, param_sk_seed_bytes) != MAYO_OK) {
+    //     ret = MAYO_ERR;
+    //     goto err;
+    // }
+    // #endif
 
     // S ← shake256(seedsk, pk seed bytes + O bytes)
     shake256(S, param_pk_seed_bytes + param_O_bytes, seed_sk,
@@ -601,9 +602,14 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
     // compute Upper(P3) and store in cpk
     m_upper(p, P3, P3_upper, param_o);
     pack_m_vecs(P3_upper, cpk + param_pk_seed_bytes, param_P3_limbs/m_vec_limbs, param_m);
-
+    FILE *fp = fopen("P.bin", "wb");
+    fwrite(P,
+        sizeof(uint64_t),
+        param_P1_limbs + PARAM_P2_limbs(p),
+        fp);
+    fclose(fp);
 #if !defined(PQM4) && !defined(HAVE_RANDOMBYTES_NORETVAL)
-    err:
+    // err:
 #endif
     mayo_secure_clear(O, sizeof(O));
     mayo_secure_clear(P2, PARAM_P2_limbs(p)*sizeof(uint64_t));
