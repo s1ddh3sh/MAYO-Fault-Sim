@@ -565,8 +565,7 @@ int main(int argc, char *argv[]) {
   // printf("FAIL: Oil mismatch\n");
   // printf("==============================\n");
 
-  // Now recompute P3 from the recovered O and rebuild cpk, to check that
-  // a fresh keypair_compact-style packing reproduces the real public key.
+  // Now recompute P3 from the recovered O and rebuild cpk
   int param_pk_seed_bytes = PARAM_pk_seed_bytes(p);
 
   unsigned char *seed_pk = calloc(param_pk_seed_bytes, 1);
@@ -592,7 +591,7 @@ int main(int argc, char *argv[]) {
     int param_P3_limbs = PARAM_P3_limbs(p);
 
     // expand_P1_P2(p, P, seed_pk);
-    compute_P3_correct(p, P1, P2, O_rec, P3);
+    compute_P3_correct(p, P1, P2, esk->O, P3);
 
     // store seed_pk in cpk
     memcpy(cpk, seed_pk, param_pk_seed_bytes);
