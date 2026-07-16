@@ -234,6 +234,15 @@ static void verify_fault_equation(const mayo_params_t *p, const uint64_t *epk,
   free(P3_full);
 }
 
+static inline void P1_times_O_correct(const mayo_params_t *p, const uint64_t *P1, const unsigned char *O, uint64_t *acc)
+{
+#ifndef ENABLE_PARAMS_DYNAMIC
+    (void)p;
+#endif
+    mul_add_m_upper_triangular_mat_x_mat(PARAM_m_vec_limbs(p), P1, O, acc, PARAM_v(p), PARAM_v(p), PARAM_o(p), 1);
+}
+
+
 static inline void compute_P3_correct(const mayo_params_t *p,
                                       const uint64_t *P1, uint64_t *P2,
                                       const unsigned char *O, uint64_t *P3) {
@@ -242,7 +251,7 @@ static inline void compute_P3_correct(const mayo_params_t *p,
   const int param_o = PARAM_o(p);
 
   // compute P1*O + P2
-  P1_times_O(p, P1, O, P2);
+  P1_times_O_correct(p, P1, O, P2);
 
   // compute P3 = O^t * (P1*O + P2)
   mul_add_mat_trans_x_m_mat(m_vec_limbs, O, P2, P3, param_v, param_o, param_o);
