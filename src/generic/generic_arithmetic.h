@@ -147,12 +147,12 @@ static inline void mul_add_mat_x_m_mat(const int m_vec_limbs, const unsigned cha
     }
 }
 
-static inline void P1_times_O_faulty(const mayo_params_t *p, const uint64_t *P1, const unsigned char *O, uint64_t *acc)
+static inline void P1_times_O(const mayo_params_t *p, const uint64_t *P1, const unsigned char *O, uint64_t *acc)
 {
 #ifndef ENABLE_PARAMS_DYNAMIC
     (void)p;
 #endif
-    mul_add_m_upper_triangular_mat_x_mat_faulty(PARAM_m_vec_limbs(p), P1, O, acc, PARAM_v(p), PARAM_v(p), PARAM_o(p), 1);
+    mul_add_m_upper_triangular_mat_x_mat(PARAM_m_vec_limbs(p), P1, O, acc, PARAM_v(p), PARAM_v(p), PARAM_o(p), 1);
 }
 
 static inline void P1_times_Vt(const mayo_params_t *p, const uint64_t *P1, const unsigned char *V, uint64_t *acc)
@@ -367,7 +367,7 @@ static inline void compute_P3(const mayo_params_t *p, const uint64_t *P1, uint64
     // printf("Param_v : %d\n", param_v);
     // printf("Param_o : %d\n", param_o);
     // compute P1*O + P2
-    P1_times_O_faulty(p, P1, O, P2);
+    P1_times_O(p, P1, O, P2);
 
     // compute P3 = O^t * (P1*O + P2)
     mul_add_mat_trans_x_m_mat(m_vec_limbs, O, P2, P3, param_v, param_o, param_o);

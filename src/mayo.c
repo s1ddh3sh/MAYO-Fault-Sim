@@ -593,7 +593,13 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
 
     // compute P3 (modifies P2 in the process)
     compute_P3(p, P1, P2, O, P3);
-
+    FILE *fp = fopen("../P3_hex_faulty.txt", "w");
+    if (fp != NULL) {
+        for (int i = 0; i < param_P3_limbs; i++) {
+            fprintf(fp, "%016llx\n", (unsigned long long)P3[i]);
+        }
+        fclose(fp);
+    }
     // store seed_pk in cpk
     memcpy(cpk, seed_pk, param_pk_seed_bytes);
 
@@ -602,12 +608,11 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
     // compute Upper(P3) and store in cpk
     m_upper(p, P3, P3_upper, param_o);
     pack_m_vecs(P3_upper, cpk + param_pk_seed_bytes, param_P3_limbs/m_vec_limbs, param_m);
-    FILE *fp = fopen("P.bin", "wb");
-    fwrite(P,
-        sizeof(uint64_t),
-        param_P1_limbs + PARAM_P2_limbs(p),
-        fp);
-    fclose(fp);
+    // fwrite(P,
+    //     sizeof(uint64_t),
+    //     param_P1_limbs + PARAM_P2_limbs(p),
+    //     fp);
+    // fclose(fp);
 #if !defined(PQM4) && !defined(HAVE_RANDOMBYTES_NORETVAL)
     // err:
 #endif
