@@ -590,16 +590,23 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
 #endif
 
     expand_P1_P2(p, P, seed_pk);
-
+//   FILE *fp = fopen("../P2.txt", "w");
+//     if (fp != NULL) {
+//         for (int i = 0; i < PARAM_P2_limbs(p); i++) {
+//             fprintf(fp, "%016llx\n", (unsigned long long)P2[i]);
+//         }
+//         fclose(fp);
+//     }
     // compute P3 (modifies P2 in the process)
-    compute_P3(p, P1, P2, O, P3);
-    FILE *fp = fopen("../P3_hex_faulty.txt", "w");
-    if (fp != NULL) {
-        for (int i = 0; i < param_P3_limbs; i++) {
-            fprintf(fp, "%016llx\n", (unsigned long long)P3[i]);
-        }
-        fclose(fp);
-    }
+    compute_P3(p, P1, P2, O, P3);   
+    // FILE *fp = fopen("../P3_hex_faulty.txt", "w");
+    // if (fp != NULL) {
+    //     for (int i = 0; i < param_P3_limbs; i++) {
+    //         fprintf(fp, "%016llx\n", (unsigned long long)P3[i]);
+    //     }
+    //     fclose(fp);
+    // }
+  
     // store seed_pk in cpk
     memcpy(cpk, seed_pk, param_pk_seed_bytes);
 

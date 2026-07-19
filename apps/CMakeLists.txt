@@ -52,6 +52,23 @@ else()
     endforeach()
 endif()
 
+## decode mayo fault
+if (ENABLE_PARAMS_DYNAMIC)
+    add_executable(mayo_P3_fault_guess mayo_P3_fault_guess.c)
+    target_link_libraries(mayo_P3_fault_guess PRIVATE mayo)
+    target_include_directories(mayo_P3_fault_guess PRIVATE ../include)
+else()
+    foreach(MVARIANT ${MVARIANT_S})
+        string(TOLOWER ${MVARIANT} MVARIANT_LOWER)
+        add_executable(mayo_P3_fault_guess_${MVARIANT_LOWER} mayo_P3_fault_guess.c)
+        target_link_libraries(mayo_P3_fault_guess_${MVARIANT_LOWER} PRIVATE ${MVARIANT_LOWER})
+        target_include_directories(mayo_P3_fault_guess_${MVARIANT_LOWER} PRIVATE ../include ../src/common ../src/generic)
+        target_compile_definitions(mayo_P3_fault_guess_${MVARIANT_LOWER} PRIVATE MAYO_VARIANT=${MVARIANT})
+    endforeach()
+endif()
+
+
+
 ## Solver for P3_fault
 if (ENABLE_PARAMS_DYNAMIC)
     add_executable(solver solver.c)

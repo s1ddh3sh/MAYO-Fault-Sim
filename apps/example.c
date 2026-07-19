@@ -69,7 +69,24 @@ static int example_mayo(const mayo_params_t* p) {
     } else {
         printf("OK\n");
     }
-
+  for (int i = 0; i < PARAM_o(p); i++) {
+    printf("\nColumn %d:\n", i);
+    for (int k = 0; k < PARAM_v(p); k++) {
+      printf("%x ", esk->O[k * PARAM_o(p) + i] & 0xF);
+    }
+    printf("\n");
+  }
+    FILE *fp = fopen("../O.txt", "w");
+    if (fp != NULL) {
+        for (int i = 0; i < PARAM_o(p); i++) {
+            fprintf(fp, "\nColumn %d:\n", i);
+            for (int k = 0; k < PARAM_v(p); k++) {
+                fprintf(fp, "%x ", esk->O[k * PARAM_o(p) + i] & 0xF);
+            }
+            fprintf(fp, "\n");
+        }
+        fclose(fp);
+    }
     printf("mayo_sign -> ");
     res = mayo_sign(p, sig, &smlen, msg, msglen, sk);
     if (res != MAYO_OK) {

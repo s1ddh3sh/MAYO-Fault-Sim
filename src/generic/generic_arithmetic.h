@@ -18,7 +18,7 @@ static inline void mul_add_m_upper_triangular_mat_x_mat(const int m_vec_limbs, c
 {
 
     int bs_mat_entries_used = 0;
-    for (int r = 0; r < bs_mat_rows; r++)
+    for (int r = 0; r < 1; r++)
     {
         for (int c = triangular * r; c < bs_mat_cols; c++)
         {
