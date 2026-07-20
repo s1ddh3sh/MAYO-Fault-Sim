@@ -18,7 +18,7 @@ static inline void mul_add_m_upper_triangular_mat_x_mat(const int m_vec_limbs, c
 {
 
     int bs_mat_entries_used = 0;
-    for (int r = 0; r < 1; r++)
+    for (int r = 0; r < bs_mat_rows; r++)
     {
         for (int c = triangular * r; c < bs_mat_cols; c++)
         {
@@ -37,7 +37,7 @@ static inline void mul_add_m_upper_triangular_mat_x_mat_faulty(const int m_vec_l
 {
 
     int bs_mat_entries_used = 0;
-    for (int r = 0; r < bs_mat_rows; r++)
+    for (int r = 0; r < 1; r++)
     {
         for (int c = triangular * r; c < bs_mat_cols; c++)
         {
@@ -152,7 +152,7 @@ static inline void P1_times_O(const mayo_params_t *p, const uint64_t *P1, const 
 #ifndef ENABLE_PARAMS_DYNAMIC
     (void)p;
 #endif
-    mul_add_m_upper_triangular_mat_x_mat(PARAM_m_vec_limbs(p), P1, O, acc, PARAM_v(p), PARAM_v(p), PARAM_o(p), 1);
+    mul_add_m_upper_triangular_mat_x_mat_faulty(PARAM_m_vec_limbs(p), P1, O, acc, PARAM_v(p), PARAM_v(p), PARAM_o(p), 1);
 }
 
 static inline void P1_times_Vt(const mayo_params_t *p, const uint64_t *P1, const unsigned char *V, uint64_t *acc)
