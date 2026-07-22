@@ -32,5 +32,5 @@ __pycache__
 .cache
 .CMake/a.out
 
-mayo_equations*
+mayo_equations_r*
 mayo_substitutions*

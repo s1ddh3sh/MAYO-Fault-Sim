@@ -115,7 +115,7 @@ static void dump_hex(const char *label, const unsigned char *buf, size_t len) {
  * Coefficients are printed as F(n), where the Sage script defines
  * F(n) as the conversion from a MAYO GF(16) nibble to GF(16).
  */
-static void dump_polynomial_equations(
+static void dump_linear_equations(
     const mayo_params_t *p,
     const uint64_t *epk)
 {
@@ -124,38 +124,78 @@ static void dump_polynomial_equations(
     int m   = PARAM_m(p);
     int mvl = PARAM_m_vec_limbs(p);
 
-    const uint64_t *P1 =
-        epk;
-
-    const uint64_t *P2_old =
+    /*
+     * Expanded public key layout:
+     *
+     *     P1 || P2 || P3
+     *
+     * Since P1_times_O() was skipped completely,
+     * P2 was never modified:
+     *
+     *     P2_fault = P2_old
+     *
+     * and:
+     *
+     *     P3_fault = O^T * P2_old
+     */
+    const uint64_t *P2 =
         epk + PARAM_P1_limbs(p);
 
+    /*
+     * Reconstruct the stored upper-triangular P3
+     * into a full o x o matrix.
+     */
     uint64_t *P3_full =
         calloc((size_t)o * o * mvl, sizeof(uint64_t));
 
+    if (!P3_full) {
+        perror("calloc P3_full");
+        return;
+    }
+
     reconstruct_full_P3(p, epk, P3_full);
 
-    FILE *fp = fopen("../mayo_equations.txt", "w");
+    FILE *fp = fopen("../mayo_equations_linear.txt", "w");
 
     if (!fp) {
-        perror("mayo_equations.txt");
+        perror("mayo_equations_linear.txt");
         free(P3_full);
         return;
     }
 
-    fprintf(fp, "# MAYO fault-derived polynomial equations\n");
+    fprintf(fp,
+            "# MAYO linear equations from fault:\n");
+    fprintf(fp,
+            "# P1_times_O() completely skipped\n");
+    fprintf(fp,
+            "# Faulty relation: P3 = O^T * P2\n\n");
+
     fprintf(fp, "# v = %d\n", v);
     fprintf(fp, "# o = %d\n", o);
     fprintf(fp, "# m = %d\n", m);
-    fprintf(fp, "# unknowns = %d\n", v * o);
-    fprintf(fp, "# equations = %d\n",
+
+    fprintf(fp,
+            "# unknowns = v*o = %d\n",
+            v * o);
+
+    fprintf(fp,
+            "# equations = m*o*(o+1)/2 = %d\n",
             m * (o * (o + 1) / 2));
-    fprintf(fp, "# variable x_k_j means O[k][j]\n\n");
+
+    fprintf(fp,
+            "# variable x_k_j means O[k][j]\n\n");
 
     int eq = 0;
 
+    /*
+     * For every GF(16) coefficient/component ell.
+     */
     for (int ell = 0; ell < m; ell++) {
 
+        /*
+         * P3 is stored as an upper-triangular matrix,
+         * so only generate equations for i <= j.
+         */
         for (int i = 0; i < o; i++) {
 
             for (int j = i; j < o; j++) {
@@ -163,7 +203,7 @@ static void dump_polynomial_equations(
                 /*
                  * Public RHS:
                  *
-                 * y = faulty P3 coefficient.
+                 *     y = P3[i][j][ell]
                  */
                 unsigned char y =
                     extract_m_element(
@@ -180,141 +220,118 @@ static void dump_polynomial_equations(
 
 #define PRINT_TERM(...)                    \
     do {                                   \
-        if (!first) fprintf(fp, " + ");    \
+        if (!first)                        \
+            fprintf(fp, " + ");            \
         fprintf(fp, __VA_ARGS__);          \
         first = 0;                         \
     } while (0)
 
                 /*
-                 * --------------------------------------------------
-                 * Linear contribution:
+                 * ==================================================
+                 * LINEAR EQUATION FROM:
                  *
-                 * O^T * P2_old
-                 * --------------------------------------------------
+                 *       P3 = O^T * P2
                  *
-                 * For off-diagonal i != j:
+                 * ==================================================
                  *
-                 * sum_k O[k,i] P2_old[k,j]
-                 * +
-                 * sum_k O[k,j] P2_old[k,i]
+                 * For off-diagonal i < j:
                  *
-                 * For diagonal i == j, only one direction is used,
-                 * matching the representation used by m_upper.
+                 * P3[i,j] =
+                 *
+                 *   sum_k O[k,i] * P2[k,j]
+                 *
+                 * + sum_k O[k,j] * P2[k,i]
+                 *
+                 *
+                 * For diagonal i == j:
+                 *
+                 * P3[i,i] =
+                 *
+                 *   sum_k O[k,i] * P2[k,i]
+                 *
+                 * We use only one direction on the diagonal,
+                 * consistent with MAYO's upper-triangular
+                 * representation.
                  */
 
                 for (int k = 0; k < v; k++) {
 
+                    /*
+                     * First direction:
+                     *
+                     *     O[k,i] * P2[k,j]
+                     *
+                     * Unknown:
+                     *
+                     *     x_k_i = O[k][i]
+                     */
                     unsigned char coeff =
                         extract_m_element(
-                            P2_old +
+                            P2 +
                             (size_t)mvl * (k * o + j),
                             ell,
                             mvl);
 
                     if (coeff != 0) {
+
                         PRINT_TERM(
                             "F(%u)*x_%d_%d",
-                            coeff, k, i);
+                            coeff,
+                            k,
+                            i);
                     }
 
+                    /*
+                     * For off-diagonal entries only:
+                     *
+                     *     O[k,j] * P2[k,i]
+                     *
+                     * Unknown:
+                     *
+                     *     x_k_j = O[k][j]
+                     */
                     if (i != j) {
 
                         coeff =
                             extract_m_element(
-                                P2_old +
+                                P2 +
                                 (size_t)mvl * (k * o + i),
                                 ell,
                                 mvl);
 
                         if (coeff != 0) {
+
                             PRINT_TERM(
                                 "F(%u)*x_%d_%d",
-                                coeff, k, j);
+                                coeff,
+                                k,
+                                j);
                         }
                     }
                 }
 
                 /*
-                 * --------------------------------------------------
-                 * Quadratic contribution caused by faulted row 0:
+                 * Move P3[i,j] to the left-hand side:
                  *
-                 * P2_fault[0,j]
+                 *     linear_expression = y
                  *
-                 * = P2_old[0,j]
-                 *   + sum_c P1[0,c] O[c,j]
+                 * Over GF(16), characteristic = 2, so:
+                 *
+                 *     -y = +y
                  *
                  * Therefore:
                  *
-                 * O[0,i] *
-                 * sum_c P1[0,c] O[c,j]
-                 *
-                 * plus the transposed direction for i != j.
-                 * --------------------------------------------------
+                 *     linear_expression + y = 0
                  */
-
-                for (int c = 0; c < v; c++) {
-
-                    /*
-                     * P1 is upper triangular.
-                     *
-                     * For row r=0, entries are:
-                     *
-                     * P1[0,0], P1[0,1], ..., P1[0,v-1]
-                     *
-                     * so packed entry index is simply c.
-                     */
-                    unsigned char coeff =
-                        extract_m_element(
-                            P1 + (size_t)mvl * c,
-                            ell,
-                            mvl);
-
-                    if (coeff == 0)
-                        continue;
-
-                    /*
-                     * x_0_i * P1[0,c] * x_c_j
-                     */
-                    PRINT_TERM(
-                        "F(%u)*x_0_%d*x_%d_%d",
-                        coeff,
-                        i,
-                        c,
-                        j);
-
-                    /*
-                     * Symmetric/off-diagonal direction:
-                     *
-                     * x_0_j * P1[0,c] * x_c_i
-                     */
-                    if (i != j) {
-                        PRINT_TERM(
-                            "F(%u)*x_0_%d*x_%d_%d",
-                            coeff,
-                            j,
-                            c,
-                            i);
-                    }
-                }
-
-                /*
-                 * Move public P3 value to LHS.
-                 *
-                 * Since GF(16) has characteristic 2:
-                 *
-                 *     lhs = y
-                 *
-                 * becomes:
-                 *
-                 *     lhs + y = 0
-                 */
-
                 if (y != 0) {
-                    PRINT_TERM("F(%u)", y);
+
+                    PRINT_TERM(
+                        "F(%u)",
+                        y);
                 }
 
                 /*
-                 * In the unlikely case everything cancelled.
+                 * Handle an all-zero equation.
                  */
                 if (first)
                     fprintf(fp, "F(0)");
@@ -331,11 +348,13 @@ static void dump_polynomial_equations(
     fclose(fp);
     free(P3_full);
 
-    printf("\nPolynomial system written to mayo_equations.txt\n");
-    printf("Unknowns  : %d\n", v * o);
-    printf("Equations : %d\n", eq);
+    printf("\n");
+    printf("Linear system written to mayo_equations_linear.txt\n");
+    printf("Fault model : P1_times_O() completely skipped\n");
+    printf("Relation    : P3 = O^T * P2\n");
+    printf("Unknowns    : %d\n", v * o);
+    printf("Equations   : %d\n", eq);
 }
-
 // =====================================================================
 // Top-level: run genuinely faulty keygen, then recover.
 // =====================================================================
@@ -392,7 +411,7 @@ static void example_fault_row0_only(const mayo_params_t *p) {
   }
 
   // The actual attack: guess row 0, linearize, solve.
-  dump_polynomial_equations(p, epk);
+  dump_linear_equations(p, epk);
 
   free(pk);
   free(esk);

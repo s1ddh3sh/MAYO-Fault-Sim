@@ -599,7 +599,7 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
 //     }
     // compute P3 (modifies P2 in the process)
     compute_P3(p, P1, P2, O, P3);   
-    // FILE *fp = fopen("../P3_hex_faulty.txt", "w");
+    // FILE *fp = fopen("../P3_hex_faulty_linear.txt", "w");
     // if (fp != NULL) {
     //     for (int i = 0; i < param_P3_limbs; i++) {
     //         fprintf(fp, "%016llx\n", (unsigned long long)P3[i]);
