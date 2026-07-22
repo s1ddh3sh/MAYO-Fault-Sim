@@ -1174,14 +1174,6 @@ def preprocessing_round(
         "\nEliminated variables:"
     )
 
-    for var in substitutions:
-
-        print(
-            " ",
-            var,
-            "=",
-            substitutions[var]
-        )
 
 
     # --------------------------------------------------------
