@@ -31,3 +31,6 @@ __pycache__
 .pytest_cache
 .cache
 .CMake/a.out
+
+mayo_equations*
+mayo_substitutions*

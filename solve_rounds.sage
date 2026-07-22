@@ -1,0 +1,1845 @@
+# ============================================================
+# MAYO structured polynomial-system preprocessing
+#
+# Pipeline:
+#
+#   1. Load equations over GF(16)
+#   2. Find linear equations already present
+#   3. Find linear equations obtained by cancelling
+#      all quadratic monomials
+#   4. Compute independent linear constraints
+#   5. Preferentially solve/eliminate y variables
+#      (rows k >= 1), while protecting q = x_0_*
+#   6. Substitute into the full polynomial system
+#   7. Repeat until a fixed point is reached
+#
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Construct MAYO's GF(16)
+#
+# GF(16) = GF(2)[a] / (a^4 + a + 1)
+# ------------------------------------------------------------
+
+B.<z> = PolynomialRing(GF(2))
+
+K.<a> = GF(
+    2**4,
+    modulus=z^4 + z + 1
+)
+
+
+# ------------------------------------------------------------
+# Convert MAYO nibble 0..15 into GF(16)
+# ------------------------------------------------------------
+
+def F(n):
+
+    n = int(n)
+
+    return (
+        ((n >> 0) & 1)
+        + ((n >> 1) & 1) * a
+        + ((n >> 2) & 1) * a^2
+        + ((n >> 3) & 1) * a^3
+    )
+
+
+# ------------------------------------------------------------
+# MAYO parameters
+# ------------------------------------------------------------
+
+v = 78
+o = 8
+
+
+# ------------------------------------------------------------
+# Polynomial ring
+# ------------------------------------------------------------
+
+names = [
+    "x_%d_%d" % (k, j)
+    for k in range(v)
+    for j in range(o)
+]
+
+R = PolynomialRing(
+    K,
+    names=names,
+    order='degrevlex'
+)
+
+gens = list(R.gens())
+
+
+# ------------------------------------------------------------
+# Variable lookup
+# ------------------------------------------------------------
+
+X = {}
+
+idx = 0
+
+for k in range(v):
+
+    for j in range(o):
+
+        X[(k, j)] = gens[idx]
+
+        idx += 1
+
+
+# ------------------------------------------------------------
+# q variables = first oil row
+#
+# q_j = x_0_j
+#
+# These variables are protected from linear elimination.
+# ------------------------------------------------------------
+
+q_vars = [
+    X[(0, j)]
+    for j in range(o)
+]
+
+q_set = set(q_vars)
+
+
+# ------------------------------------------------------------
+# y variables = all remaining oil rows
+# ------------------------------------------------------------
+
+y_vars = [
+    X[(k, j)]
+    for k in range(1, v)
+    for j in range(o)
+]
+
+y_set = set(y_vars)
+
+
+print("q variables:", len(q_vars))
+print("y variables:", len(y_vars))
+
+print("Total variables:", len(gens))
+
+
+# ------------------------------------------------------------
+# Environment for parsing equations
+# ------------------------------------------------------------
+
+env = {
+    str(g): g
+    for g in gens
+}
+
+env["F"] = F
+env["a"] = a
+
+# ============================================================
+# Load equations
+# ============================================================
+
+equations = []
+
+with open("mayo_equations.txt", "r") as fp:
+
+    for line in fp:
+
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if line.startswith("#"):
+            continue
+
+        lhs, rhs = line.split("==")
+
+        lhs = lhs.strip()
+        rhs = rhs.strip()
+
+        # Important:
+        #
+        # We convert:
+        #
+        #       lhs == rhs
+        #
+        # into:
+        #
+        #       lhs - rhs = 0
+        #
+        # In characteristic 2, subtraction equals addition,
+        # but this is the mathematically general form.
+
+        lhs_poly = eval(
+            lhs,
+            {"__builtins__": {}},
+            env
+        )
+
+        rhs_poly = eval(
+            rhs,
+            {"__builtins__": {}},
+            env
+        )
+
+        f = R(lhs_poly - rhs_poly)
+
+        if f != 0:
+            equations.append(f)
+
+
+print("\n========================================")
+print("Initial system")
+print("========================================")
+
+print("Loaded equations:", len(equations))
+print("Ring variables:", R.ngens())
+
+
+# ============================================================
+# Utility: variables actually appearing
+# ============================================================
+
+def variables_in_system(eqs):
+
+    used = set()
+
+    for f in eqs:
+
+        for var in f.variables():
+            used.add(var)
+
+    return used
+
+
+# ============================================================
+# Utility: degree distribution
+# ============================================================
+
+def degree_distribution(eqs):
+
+    from collections import Counter
+
+    degrees = Counter()
+
+    for f in eqs:
+
+        if f == 0:
+            continue
+
+        degrees[f.degree()] += 1
+
+    return degrees
+
+
+# ============================================================
+# Utility: get all quadratic monomials
+# ============================================================
+
+def get_quadratic_monomials(eqs):
+
+    quad_mons = set()
+
+    for f in eqs:
+
+        for mon in f.monomials():
+
+            if mon.degree() == 2:
+                quad_mons.add(mon)
+
+    return sorted(
+        quad_mons,
+        key=str
+    )
+
+
+# ============================================================
+# Utility: classify quadratic monomials
+#
+# qq = q*q
+# qy = q*y
+# yy = y*y
+# ============================================================
+
+def classify_quadratic_monomials(quad_mons):
+
+    qq = []
+    qy = []
+    yy = []
+
+    for mon in quad_mons:
+
+        has_q = False
+        has_y = False
+
+        for var in mon.variables():
+
+            if var in q_set:
+                has_q = True
+
+            if var in y_set:
+                has_y = True
+
+        if has_q and not has_y:
+            qq.append(mon)
+
+        elif has_q and has_y:
+            qy.append(mon)
+
+        else:
+            yy.append(mon)
+
+    return qq, qy, yy
+
+
+# ============================================================
+# Normalize a linear polynomial
+#
+# This is useful for deduplicating equations that differ only
+# by a nonzero scalar multiple.
+#
+# Example:
+#
+#     a*x + a*y + 1
+#
+# and
+#
+#     x + y + 1/a
+#
+# represent the same linear constraint.
+# ============================================================
+
+def normalize_linear(f):
+
+    f = R(f)
+
+    if f == 0:
+        return f
+
+    # Find first nonzero variable coefficient.
+
+    for var in gens:
+
+        c = f.monomial_coefficient(var)
+
+        if c != 0:
+            return R((1 / c) * f)
+
+    # Constant-only equation.
+
+    c = f.constant_coefficient()
+
+    if c != 0:
+        return R((1 / c) * f)
+
+    return f
+
+
+# ============================================================
+# Remove duplicate linear equations
+# ============================================================
+
+def deduplicate_linear(linear_eqs):
+
+    unique = {}
+
+    for f in linear_eqs:
+
+        f = R(f)
+
+        if f == 0:
+            continue
+
+        if f.degree() > 1:
+            continue
+
+        g = normalize_linear(f)
+
+        unique[str(g)] = g
+
+    return list(unique.values())
+
+
+# ============================================================
+# Extract existing linear equations
+# ============================================================
+
+def get_existing_linear_equations(eqs):
+
+    result = []
+
+    for f in eqs:
+
+        if f != 0 and f.degree() <= 1:
+            result.append(R(f))
+
+    return deduplicate_linear(result)
+
+
+# ============================================================
+# Find quadratic-cancelling combinations
+#
+# Build CQ:
+#
+#   rows    = equations
+#   columns = quadratic monomials
+#
+# CQ[e,m] = coefficient of quadratic monomial m
+#           in equation e.
+#
+# A vector lambda in the LEFT kernel satisfies:
+#
+#       lambda * CQ = 0
+#
+# Therefore:
+#
+#       sum lambda_i f_i
+#
+# contains no quadratic monomials.
+# ============================================================
+
+def derive_linear_from_quadratic_cancellation(eqs):
+
+    quad_mons = get_quadratic_monomials(eqs)
+
+    print(
+        "Quadratic monomials:",
+        len(quad_mons)
+    )
+
+    if len(quad_mons) == 0:
+
+        print(
+            "No quadratic monomials remain."
+        )
+
+        return [], {
+            "quad_mons": [],
+            "rank": 0,
+            "kernel_dim": 0
+        }
+
+
+    print(
+        "Building quadratic coefficient matrix:",
+        len(eqs),
+        "x",
+        len(quad_mons)
+    )
+
+
+    CQ = Matrix(
+        K,
+        len(eqs),
+        len(quad_mons),
+        lambda i, j:
+            eqs[i].monomial_coefficient(
+                quad_mons[j]
+            )
+    )
+
+
+    cq_rank = CQ.rank()
+
+    print(
+        "Quadratic coefficient rank:",
+        cq_rank
+    )
+
+
+    N = CQ.left_kernel()
+
+    kernel_dim = N.dimension()
+
+    print(
+        "Quadratic-cancelling combinations:",
+        kernel_dim
+    )
+
+
+    derived = []
+
+
+    for lam in N.basis():
+
+        g = R.zero()
+
+        for i in range(len(eqs)):
+
+            if lam[i] != 0:
+
+                g += lam[i] * eqs[i]
+
+        g = R(g)
+
+
+        if g == 0:
+            continue
+
+
+        if g.degree() <= 1:
+
+            derived.append(g)
+
+
+    derived = deduplicate_linear(
+        derived
+    )
+
+
+    print(
+        "Derived nonzero linear equations:",
+        len(derived)
+    )
+
+
+    return derived, {
+        "quad_mons": quad_mons,
+        "rank": cq_rank,
+        "kernel_dim": kernel_dim
+    }
+
+
+# ============================================================
+# Convert linear polynomials into matrix form
+#
+#       A x = b
+#
+# We allow a custom variable order.
+#
+# IMPORTANT:
+#
+# y variables are placed FIRST.
+# q variables are placed LAST.
+#
+# Therefore RREF preferentially chooses y pivots.
+# ============================================================
+
+def linear_system_matrix(linear_eqs):
+
+    variable_order = (
+        y_vars
+        + q_vars
+    )
+
+    A = Matrix(
+        K,
+        len(linear_eqs),
+        len(variable_order),
+        lambda i, j:
+            linear_eqs[i].monomial_coefficient(
+                variable_order[j]
+            )
+    )
+
+    b = vector(
+        K,
+        [
+            -f.constant_coefficient()
+            for f in linear_eqs
+        ]
+    )
+
+    return A, b, variable_order
+
+
+# ============================================================
+# Extract independent linear equations
+#
+# Instead of keeping all possibly dependent derived equations,
+# row-reduce the augmented system.
+# ============================================================
+
+def independent_linear_equations(linear_eqs):
+
+    linear_eqs = deduplicate_linear(
+        linear_eqs
+    )
+
+    if len(linear_eqs) == 0:
+        return []
+
+
+    A, b, variable_order = \
+        linear_system_matrix(linear_eqs)
+
+
+    rank_A = A.rank()
+
+    Aug = A.augment(
+        b.column()
+    )
+
+    rank_aug = Aug.rank()
+
+
+    print(
+        "Linear coefficient rank:",
+        rank_A
+    )
+
+    print(
+        "Linear augmented rank:",
+        rank_aug
+    )
+
+
+    if rank_A != rank_aug:
+
+        raise RuntimeError(
+            "Linear system became inconsistent"
+        )
+
+
+    E = Aug.echelon_form()
+
+
+    independent = []
+
+
+    for row in range(E.nrows()):
+
+        # Ignore zero rows.
+
+        nonzero = False
+
+        for col in range(E.ncols()):
+
+            if E[row, col] != 0:
+
+                nonzero = True
+                break
+
+        if not nonzero:
+            continue
+
+
+        f = R.zero()
+
+
+        for col, var in enumerate(variable_order):
+
+            coeff = E[row, col]
+
+            if coeff != 0:
+
+                f += coeff * var
+
+
+        # A*x = b
+        #
+        # Move RHS to LHS:
+        #
+        # A*x - b = 0
+
+        f -= E[
+            row,
+            len(variable_order)
+        ]
+
+
+        f = R(f)
+
+
+        if f != 0:
+
+            independent.append(f)
+
+
+    return deduplicate_linear(
+        independent
+    )
+
+
+# ============================================================
+# Build substitutions while protecting q variables
+#
+# We row-reduce with:
+#
+#       [ y variables | q variables | RHS ]
+#
+# Thus y variables are preferentially selected as pivots.
+#
+# For each pivot y:
+#
+#       y_p = linear expression in later variables
+#
+# q variables are never deliberately eliminated.
+# ============================================================
+
+def build_y_substitutions(linear_eqs):
+
+    if len(linear_eqs) == 0:
+        return {}
+
+
+    A, b, variable_order = \
+        linear_system_matrix(linear_eqs)
+
+
+    Aug = A.augment(
+        b.column()
+    )
+
+
+    if A.rank() != Aug.rank():
+
+        raise RuntimeError(
+            "Cannot build substitutions: "
+            "linear system inconsistent"
+        )
+
+
+    E = Aug.echelon_form()
+
+
+    substitutions = {}
+
+
+    num_vars = len(variable_order)
+
+
+    for row in range(E.nrows()):
+
+        pivot_col = None
+
+
+        # Find first nonzero coefficient.
+
+        for col in range(num_vars):
+
+            if E[row, col] != 0:
+
+                pivot_col = col
+                break
+
+
+        if pivot_col is None:
+            continue
+
+
+        pivot_var = variable_order[
+            pivot_col
+        ]
+
+
+        # Protect q variables.
+
+        if pivot_var in q_set:
+
+            continue
+
+
+        pivot_coeff = E[
+            row,
+            pivot_col
+        ]
+
+
+        # Equation:
+        #
+        # pivot_coeff * pivot_var
+        # + sum(other coeff * vars)
+        # = RHS
+        #
+        # Therefore:
+        #
+        # pivot_var =
+        # (
+        #   RHS
+        #   - sum(other terms)
+        # ) / pivot_coeff
+
+        expr = E[
+            row,
+            num_vars
+        ]
+
+
+        for col in range(
+            pivot_col + 1,
+            num_vars
+        ):
+
+            coeff = E[
+                row,
+                col
+            ]
+
+            if coeff != 0:
+
+                expr -= (
+                    coeff
+                    * variable_order[col]
+                )
+
+
+        expr = R(
+            expr / pivot_coeff
+        )
+
+
+        substitutions[
+            pivot_var
+        ] = expr
+
+
+    return substitutions
+
+
+# ============================================================
+# Recursively resolve substitutions
+#
+# Example:
+#
+#   y1 -> y2 + q0
+#   y2 -> y3 + 1
+#
+# We want:
+#
+#   y1 -> y3 + 1 + q0
+#
+# This prevents eliminated variables from remaining inside
+# substitution expressions.
+# ============================================================
+
+def resolve_substitutions(subs):
+
+    if not subs:
+        return {}
+
+
+    resolved = dict(subs)
+
+
+    changed = True
+
+    while changed:
+
+        changed = False
+
+
+        for var in list(resolved.keys()):
+
+            expr = resolved[var]
+
+            new_expr = expr.subs(
+                resolved
+            )
+
+            new_expr = R(new_expr)
+
+
+            if new_expr != expr:
+
+                resolved[var] = new_expr
+
+                changed = True
+
+
+    return resolved
+
+
+# ============================================================
+# Substitute and simplify the polynomial system
+# ============================================================
+
+def substitute_system(eqs, substitutions):
+
+    if len(substitutions) == 0:
+
+        return list(eqs)
+
+
+    substitutions = resolve_substitutions(
+        substitutions
+    )
+
+
+    new_eqs = []
+
+
+    for f in eqs:
+
+        g = R(
+            f.subs(substitutions)
+        )
+
+
+        if g == 0:
+            continue
+
+
+        # Detect impossible constant equation.
+
+        if g.degree() == 0:
+
+            if g != 0:
+
+                raise RuntimeError(
+                    "Substitution produced "
+                    "a nonzero constant equation: %s"
+                    % g
+                )
+
+
+        new_eqs.append(g)
+
+
+    # Remove exact duplicate equations.
+
+    unique = {}
+
+    for f in new_eqs:
+
+        unique[str(f)] = f
+
+
+    return list(
+        unique.values()
+    )
+
+
+# ============================================================
+# Print system statistics
+# ============================================================
+
+def print_system_statistics(
+    eqs,
+    round_number
+):
+
+    print("\n")
+    print("=" * 70)
+
+    print(
+        "ROUND",
+        round_number
+    )
+
+    print("=" * 70)
+
+
+    used = variables_in_system(eqs)
+
+
+    used_q = [
+        q
+        for q in q_vars
+        if q in used
+    ]
+
+    used_y = [
+        y
+        for y in y_vars
+        if y in used
+    ]
+
+
+    print(
+        "Equations:",
+        len(eqs)
+    )
+
+    print(
+        "Variables actually appearing:",
+        len(used)
+    )
+
+    print(
+        "q variables appearing:",
+        len(used_q)
+    )
+
+    print(
+        "y variables appearing:",
+        len(used_y)
+    )
+
+
+    degrees = degree_distribution(
+        eqs
+    )
+
+
+    print(
+        "\nDegree distribution:"
+    )
+
+    for d in sorted(degrees):
+
+        print(
+            "  degree",
+            d,
+            ":",
+            degrees[d]
+        )
+
+
+    existing_linear = \
+        get_existing_linear_equations(
+            eqs
+        )
+
+
+    print(
+        "\nExisting linear equations:",
+        len(existing_linear)
+    )
+
+
+    quad_mons = \
+        get_quadratic_monomials(
+            eqs
+        )
+
+
+    qq, qy, yy = \
+        classify_quadratic_monomials(
+            quad_mons
+        )
+
+
+    print(
+        "\nQuadratic monomial structure:"
+    )
+
+    print(
+        "  Total:",
+        len(quad_mons)
+    )
+
+    print(
+        "  q*q:",
+        len(qq)
+    )
+
+    print(
+        "  q*y:",
+        len(qy)
+    )
+
+    print(
+        "  y*y:",
+        len(yy)
+    )
+
+
+    return {
+        "used": used,
+        "used_q": used_q,
+        "used_y": used_y,
+        "existing_linear":
+            existing_linear,
+        "quad_mons":
+            quad_mons,
+        "qq": qq,
+        "qy": qy,
+        "yy": yy
+    }
+
+
+# ============================================================
+# One preprocessing round
+# ============================================================
+
+def preprocessing_round(
+    eqs,
+    round_number
+):
+
+    stats = print_system_statistics(
+        eqs,
+        round_number
+    )
+
+
+    # --------------------------------------------------------
+    # Step 1:
+    # Keep linear equations already present.
+    # --------------------------------------------------------
+
+    existing_linear = \
+        stats["existing_linear"]
+
+
+    # --------------------------------------------------------
+    # Step 2:
+    # Derive additional linear equations by cancelling
+    # quadratic monomials.
+    # --------------------------------------------------------
+
+    derived_linear, quad_info = \
+        derive_linear_from_quadratic_cancellation(
+            eqs
+        )
+
+
+    # --------------------------------------------------------
+    # Step 3:
+    # Combine all linear information.
+    # --------------------------------------------------------
+
+    all_linear = (
+        existing_linear
+        + derived_linear
+    )
+
+
+    all_linear = \
+        deduplicate_linear(
+            all_linear
+        )
+
+
+    print(
+        "\nTotal candidate linear constraints:",
+        len(all_linear)
+    )
+
+
+    # --------------------------------------------------------
+    # Step 4:
+    # Reduce to independent constraints.
+    # --------------------------------------------------------
+
+    independent = \
+        independent_linear_equations(
+            all_linear
+        )
+
+
+    print(
+        "Independent linear constraints:",
+        len(independent)
+    )
+
+
+    if len(independent) == 0:
+
+        print(
+            "\nNo independent linear constraints "
+            "available."
+        )
+
+        return eqs, {}, {
+            "stop": True,
+            "reason":
+                "no linear constraints"
+        }
+
+
+    # --------------------------------------------------------
+    # Step 5:
+    # Build substitutions, preferring y pivots.
+    # --------------------------------------------------------
+
+    substitutions = \
+        build_y_substitutions(
+            independent
+        )
+
+
+    substitutions = \
+        resolve_substitutions(
+            substitutions
+        )
+
+
+    print(
+        "Eliminable y variables:",
+        len(substitutions)
+    )
+
+
+    if len(substitutions) == 0:
+
+        print(
+            "\nLinear constraints exist, "
+            "but none can eliminate a y variable "
+            "without pivoting on protected q variables."
+        )
+
+        return eqs, {}, {
+            "stop": True,
+            "reason":
+                "no y substitutions"
+        }
+
+
+    print(
+        "\nEliminated variables:"
+    )
+
+    for var in substitutions:
+
+        print(
+            " ",
+            var,
+            "=",
+            substitutions[var]
+        )
+
+
+    # --------------------------------------------------------
+    # Step 6:
+    # Substitute into ALL original/current equations.
+    # --------------------------------------------------------
+
+    new_eqs = substitute_system(
+        eqs,
+        substitutions
+    )
+
+
+    print(
+        "\nAfter substitution:"
+    )
+
+    print(
+        "  equations before:",
+        len(eqs)
+    )
+
+    print(
+        "  equations after:",
+        len(new_eqs)
+    )
+
+
+    old_used = variables_in_system(
+        eqs
+    )
+
+    new_used = variables_in_system(
+        new_eqs
+    )
+
+
+    print(
+        "  variables before:",
+        len(old_used)
+    )
+
+    print(
+        "  variables after:",
+        len(new_used)
+    )
+
+
+    eliminated_actual = (
+        old_used - new_used
+    )
+
+
+    print(
+        "  variables actually removed:",
+        len(eliminated_actual)
+    )
+
+
+    return new_eqs, substitutions, {
+        "stop": False,
+        "reason": None,
+        "independent_linear":
+            len(independent),
+        "eliminated":
+            len(eliminated_actual),
+        "quadratic_rank":
+            quad_info["rank"],
+        "quadratic_kernel":
+            quad_info["kernel_dim"]
+    }
+
+
+# ============================================================
+# Fixed-point preprocessing
+# ============================================================
+
+# ============================================================
+# Load a polynomial system from a saved checkpoint
+#
+# Expected format:
+#
+#     polynomial == 0
+#
+# ============================================================
+def load_equations(filename):
+
+    eqs = []
+
+    with open(filename, "r") as fp:
+
+        for line_number, line in enumerate(fp, start=1):
+
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            lhs, rhs = line.split("==", 1)
+
+            lhs = lhs.strip()
+            rhs = rhs.strip()
+
+            # IMPORTANT:
+            # Sage's str(polynomial) prints powers using ^,
+            # e.g. a^3 + a^2 + 1.
+            #
+            # But Python eval() interprets ^ as XOR.
+            # Convert Sage exponent syntax to Python exponent syntax.
+            lhs = lhs.replace("^", "**")
+            rhs = rhs.replace("^", "**")
+
+            try:
+
+                lhs_poly = eval(
+                    lhs,
+                    {"__builtins__": {}},
+                    env
+                )
+
+                rhs_poly = eval(
+                    rhs,
+                    {"__builtins__": {}},
+                    env
+                )
+
+            except Exception as e:
+
+                print(
+                    "\nERROR parsing checkpoint:",
+                    filename
+                )
+
+                print(
+                    "Line:",
+                    line_number
+                )
+
+                print(
+                    "Original:",
+                    line
+                )
+
+                print(
+                    "Parsed LHS:",
+                    lhs
+                )
+
+                print(
+                    "Parsed RHS:",
+                    rhs
+                )
+
+                raise
+
+            f = R(lhs_poly - rhs_poly)
+
+            if f != 0:
+                eqs.append(f)
+
+    return eqs
+
+
+def save_checkpoint(
+    eqs,
+    substitutions,
+    round_number
+):
+
+    eq_filename = (
+        "mayo_equations_round_%d.txt"
+        % round_number
+    )
+
+    sub_filename = (
+        "mayo_substitutions_round_%d.txt"
+        % round_number
+    )
+
+    with open(eq_filename, "w") as fp:
+
+        for f in eqs:
+
+            fp.write(
+                str(f)
+                + " == 0\n"
+            )
+
+
+    with open(sub_filename, "w") as fp:
+
+        for var in sorted(
+            substitutions,
+            key=str
+        ):
+
+            fp.write(
+                str(var)
+                + " = "
+                + str(substitutions[var])
+                + "\n"
+            )
+
+
+    print("\nCheckpoint saved:")
+
+    print(
+        " ",
+        eq_filename
+    )
+
+    print(
+        " ",
+        sub_filename
+    )
+
+
+# ============================================================
+# Load accumulated substitutions
+#
+# Expected format:
+#
+#     x_1_0 = expression
+#     x_1_1 = expression
+#     ...
+#
+# ============================================================
+
+def load_substitutions(filename):
+
+    subs = {}
+
+    with open(filename, "r") as fp:
+
+        for line_number, line in enumerate(fp, start=1):
+
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            lhs, rhs = line.split("=", 1)
+
+            lhs = lhs.strip()
+            rhs = rhs.strip()
+
+            var = env[lhs]
+
+            # Convert Sage ^ exponent syntax for Python eval().
+            rhs = rhs.replace("^", "**")
+
+            try:
+
+                expr = eval(
+                    rhs,
+                    {"__builtins__": {}},
+                    env
+                )
+
+            except Exception:
+
+                print(
+                    "\nERROR parsing substitutions:",
+                    filename
+                )
+
+                print(
+                    "Line:",
+                    line_number
+                )
+
+                print(
+                    "Original:",
+                    line
+                )
+
+                print(
+                    "Parsed RHS:",
+                    rhs
+                )
+
+                raise
+
+            subs[var] = R(expr)
+
+    return resolve_substitutions(subs)
+
+def run_fixed_point_pipeline(
+    initial_equations,
+    initial_substitutions=None,
+    max_rounds=20,
+    starting_round=1
+):
+
+    current = list(initial_equations)
+
+    if initial_substitutions is None:
+        global_substitutions = {}
+    else:
+        global_substitutions = dict(initial_substitutions)
+
+    global_substitutions = resolve_substitutions(
+        global_substitutions
+    )
+
+    print("\nStarting pipeline with:")
+    print("  equations:", len(current))
+    print(
+        "  variables appearing:",
+        len(variables_in_system(current))
+    )
+    print(
+        "  previously eliminated variables:",
+        len(global_substitutions)
+    )
+
+    for round_number in range(
+        starting_round,
+        starting_round + max_rounds
+    ):
+
+
+        # ----------------------------------------------------
+        # Signature before processing.
+        #
+        # Used to detect a fixed point.
+        # ----------------------------------------------------
+
+        used_before = \
+            variables_in_system(
+                current
+            )
+
+        quad_before = \
+            get_quadratic_monomials(
+                current
+            )
+
+        signature_before = (
+            len(current),
+            len(used_before),
+            len(quad_before)
+        )
+
+
+        # ----------------------------------------------------
+        # Execute one round.
+        # ----------------------------------------------------
+
+        new_eqs, round_subs, info = \
+            preprocessing_round(
+                current,
+                round_number
+            )
+
+
+        # ----------------------------------------------------
+        # Accumulate substitutions.
+        # ----------------------------------------------------
+
+        if round_subs:
+
+            # First update older substitutions with
+            # newly discovered substitutions.
+
+            for old_var in list(
+                global_substitutions.keys()
+            ):
+
+                global_substitutions[
+                    old_var
+                ] = R(
+                    global_substitutions[
+                        old_var
+                    ].subs(
+                        round_subs
+                    )
+                )
+
+
+            # Add new substitutions.
+
+            for var, expr in \
+                    round_subs.items():
+
+                global_substitutions[
+                    var
+                ] = R(expr)
+
+
+            global_substitutions = \
+                resolve_substitutions(
+                    global_substitutions
+                )
+
+
+        # ----------------------------------------------------
+        # Explicit stop requested by round.
+        # ----------------------------------------------------
+
+        if info["stop"]:
+
+            print("\n")
+            print("=" * 70)
+
+            print(
+                "FIXED POINT / STOP CONDITION"
+            )
+
+            print("=" * 70)
+
+            print(
+                "Reason:",
+                info["reason"]
+            )
+
+            current = new_eqs
+            
+            break
+
+
+        # ----------------------------------------------------
+        # Compute signature after processing.
+        # ----------------------------------------------------
+
+        used_after = \
+            variables_in_system(
+                new_eqs
+            )
+
+        quad_after = \
+            get_quadratic_monomials(
+                new_eqs
+            )
+
+        signature_after = (
+            len(new_eqs),
+            len(used_after),
+            len(quad_after)
+        )
+
+
+        print(
+            "\nRound signature:"
+        )
+
+        print(
+            "  before:",
+            signature_before
+        )
+
+        print(
+            "  after :",
+            signature_after
+        )
+
+
+        # ----------------------------------------------------
+        # Fixed point:
+        #
+        # no structural progress.
+        # ----------------------------------------------------
+
+        if signature_after == \
+                signature_before:
+
+            print("\n")
+            print("=" * 70)
+
+            print(
+                "FIXED POINT REACHED"
+            )
+
+            print("=" * 70)
+
+            print(
+                "No reduction in equations, "
+                "variables, or quadratic monomials."
+            )
+
+            current = new_eqs
+            save_checkpoint(
+                current,
+                global_substitutions,
+                round_number
+            )
+            break
+
+
+        current = new_eqs
+        save_checkpoint(
+            current,
+            global_substitutions,
+            round_number
+        )
+
+    else:
+
+        print(
+            "\nMaximum number of rounds reached:",
+            max_rounds
+        )
+
+
+    # ========================================================
+    # Final statistics
+    # ========================================================
+
+    print("\n")
+    print("=" * 70)
+
+    print(
+        "FINAL PREPROCESSED SYSTEM"
+    )
+
+    print("=" * 70)
+
+
+    final_stats = \
+        print_system_statistics(
+            current,
+            "FINAL"
+        )
+
+
+    print(
+        "\nTotal eliminated variables:",
+        len(global_substitutions)
+    )
+
+
+    remaining_q = [
+        q
+        for q in q_vars
+        if q in final_stats["used"]
+    ]
+
+    remaining_y = [
+        y
+        for y in y_vars
+        if y in final_stats["used"]
+    ]
+
+
+    print(
+        "Remaining q variables:",
+        len(remaining_q)
+    )
+
+    print(
+        "Remaining y variables:",
+        len(remaining_y)
+    )
+
+
+    return (
+        current,
+        global_substitutions
+    )
+
+
+# ============================================================
+# Run preprocessing
+# ============================================================
+resume_equations_file = "mayo_equations_reduced.txt"
+resume_substitutions_file = "mayo_substitutions.txt"
+
+print("\n========================================")
+print("RESUMING FROM CHECKPOINT")
+print("========================================")
+
+equations = load_equations(
+    resume_equations_file
+)
+
+previous_substitutions = load_substitutions(
+    resume_substitutions_file
+)
+
+print(
+    "Loaded reduced equations:",
+    len(equations)
+)
+
+print(
+    "Variables currently appearing:",
+    len(variables_in_system(equations))
+)
+
+print(
+    "Loaded previous substitutions:",
+    len(previous_substitutions)
+)
+
+
+reduced_equations, substitutions = \
+    run_fixed_point_pipeline(
+        equations,
+        initial_substitutions=previous_substitutions,
+        max_rounds=10,
+        starting_round=8
+    )
+
+# ============================================================
+# Save reduced polynomial system
+# ============================================================
+
+with open(
+    "mayo_equations_reduced.txt",
+    "w"
+) as fp:
+
+    for f in reduced_equations:
+
+        fp.write(
+            str(f)
+            + " == 0\n"
+        )
+
+
+print(
+    "\nSaved reduced equations to:"
+)
+
+print(
+    "mayo_equations_reduced.txt"
+)
+
+
+# ============================================================
+# Save substitutions
+#
+# These are needed later to reconstruct the full O matrix
+# after solving the reduced system.
+# ============================================================
+
+with open(
+    "mayo_substitutions.txt",
+    "w"
+) as fp:
+
+    for var in sorted(
+        substitutions,
+        key=str
+    ):
+
+        fp.write(
+            str(var)
+            + " = "
+            + str(substitutions[var])
+            + "\n"
+        )
+
+
+print(
+    "Saved substitutions to:"
+)
+
+print(
+    "mayo_substitutions.txt"
+)
