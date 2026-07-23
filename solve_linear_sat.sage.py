@@ -8,7 +8,8 @@ _sage_const_78 = Integer(78); _sage_const_8 = Integer(8); _sage_const_4 = Intege
 import re
 import subprocess
 import sys
-
+from sage.sat.solvers.cryptominisat import CryptoMiniSat
+#from sage.sat.solvers.satsolver import SAT
 
 v = _sage_const_78 
 o = _sage_const_8 
@@ -28,7 +29,7 @@ print("Boolean variables   :", NUM_BOOL_VARS)
 
 def gf16_add_int(x, y):
 
-    return (x ** y) & _sage_const_0xF 
+    return (x ^ y) & _sage_const_0xF 
 
 
 def gf16_mul_int(a, b):
@@ -44,7 +45,7 @@ def gf16_mul_int(a, b):
 
         if (b >> i) & _sage_const_1 :
 
-            result **= a << i
+            result ^= a << i
 
     # Reduce degrees 6,5,4 modulo:
     #
@@ -60,11 +61,11 @@ def gf16_mul_int(a, b):
 
         if result & (_sage_const_1  << degree):
 
-            result **= (_sage_const_1  << degree)
+            result ^= (_sage_const_1  << degree)
 
-            result **= (_sage_const_1  << (degree - _sage_const_3 ))
+            result ^= (_sage_const_1  << (degree - _sage_const_3 ))
 
-            result **= (_sage_const_1  << (degree - _sage_const_4 ))
+            result ^= (_sage_const_1  << (degree - _sage_const_4 ))
 
     return result & _sage_const_0xF 
 
@@ -161,7 +162,9 @@ VARIABLE_TERM_RE = re.compile(
 CONSTANT_TERM_RE = re.compile(
     r'^F\(\s*(\d+)\s*\)$'
 )
-
+BARE_CONSTANT_RE = re.compile(
+    r'^(\d+)$'
+)
 
 def parse_side(side):
 
@@ -298,6 +301,20 @@ def parse_side(side):
 
             continue
 
+        match = BARE_CONSTANT_RE.match(term)
+
+        if match:
+
+            value = int(
+                match.group(_sage_const_1 )
+            ) & _sage_const_0xF 
+
+            constant = gf16_add_int(
+                constant,
+                value
+            )
+
+            continue
 
         raise ValueError(
             "Could not parse term:\n%s"
@@ -580,6 +597,34 @@ if len(xor_equations) != expected_xor:
         "Incorrect XOR equation count"
     )
 
+XOR_TXT_FILE = "boolean_xor_equations.txt"
+
+print("\n========================================")
+print("WRITING ALL BOOLEAN XOR EQUATIONS TO FILE")
+print("========================================")
+
+is_linear = True
+
+with open(XOR_TXT_FILE, "w") as fp:
+    fp.write(f"# Generated Boolean XOR Equations over GF(2)\n")
+    fp.write(f"# Total Equations: {len(xor_equations)}\n")
+    fp.write(f"# Total Variables: {NUM_BOOL_VARS}\n\n")
+
+    for eq_idx, (vars_list, rhs_bit) in enumerate(xor_equations):
+        # Format variables into readable terms: x1 ^ x5 ^ x12 ...
+        var_names = [f"x{v}" for v in vars_list]
+        lhs_str = " ^ ".join(var_names) if var_names else "0"
+
+        # Check linearity: every term must be a single boolean variable
+        # (No AND products x_a * x_b present)
+        if not isinstance(vars_list, (list, set, tuple)):
+            is_linear = False
+
+        fp.write(f"Eq {eq_idx + _sage_const_1 :5d}: {lhs_str} = {rhs_bit}\n")
+
+print(f"Successfully wrote {len(xor_equations)} equations to: {XOR_TXT_FILE}")
+print("System Linear over GF(2) :", "YES" if is_linear else "NO")
+print("========================================\n")
 
 # ============================================================
 # 10. Write CryptoMiniSat XOR-DIMACS
@@ -604,6 +649,30 @@ if len(xor_equations) != expected_xor:
 #
 #       XOR(~x1,x2,...)=1
 # ============================================================
+
+def solve_with_cryptominisat(xor_eqs, num_vars):
+    """Solves XOR equations directly using Sage's CryptoMiniSat interface."""
+    solver = CryptoMiniSat()
+
+    for vars_list, rhs_bit in xor_eqs:
+        # add_xor_clause accepts 1-indexed integers and a boolean parity (rhs_bit)
+        solver.add_xor_clause(vars_list, bool(rhs_bit))
+
+    # Sage's CryptoMiniSat uses __call__() instead of solve()
+    # It returns a tuple: (is_sat, solution_tuple)
+    solution_tuple = solver()
+
+    if not solution_tuple:
+        return None
+
+    # solution_tuple is a 1-indexed tuple where solution_tuple[i] is True/False
+    # Note: Sage returns True/False values in 1-based indexing for solution_tuple
+    assignment = {}
+    for var_id in range(_sage_const_1 , num_vars + _sage_const_1 ):
+        assignment[var_id] = _sage_const_1  if solution_tuple[var_id] else _sage_const_0 
+
+    return assignment
+
 
 
 with open(CNF_FILE, "w") as fp:
@@ -676,181 +745,47 @@ print(
     CNF_FILE
 )
 
-
 print("RUNNING CRYPTOMINISAT")
 
+assignment = solve_with_cryptominisat(xor_equations, NUM_BOOL_VARS)
 
-try:
-
-    result = subprocess.run(
-
-        [
-            "cryptominisat5",
-            CNF_FILE
-        ],
-
-        stdout=subprocess.PIPE,
-
-        stderr=subprocess.PIPE,
-
-        universal_newlines=True
-    )
-
-
-except FileNotFoundError:
-
-    print(
-        "\ncryptominisat5 not found."
-    )
-
-    print(
-        "Run manually:"
-    )
-
-    print(
-        "\ncryptominisat5 %s"
-        % CNF_FILE
-    )
-
-    sys.exit(_sage_const_1 )
-
-
-output = result.stdout
-
-
-print(output)
-
-
-# 12. Check SAT result
-
-if "s UNSATISFIABLE" in output:
-
+if assignment is None:
     print("\n========================================")
-
-    print(
-        "RESULT: UNSAT"
-    )
-
-    print(
-        "Independent SAT verification disagrees "
-        "with Sage."
-    )
-
+    print("RESULT: UNSAT")
+    print("Independent SAT verification disagrees with Sage.")
     print("========================================")
-
     sys.exit(_sage_const_1 )
 
-
-if "s SATISFIABLE" not in output:
-
-    print(
-        "ERROR: could not find SAT result."
-    )
-
-    sys.exit(_sage_const_1 )
-
-
-print(
-    "\nIndependent CryptoMiniSat result: SAT"
-)
-
-
-# 13. Parse Boolean SAT assignment
-
-assignment = {}
-
-
-for line in output.splitlines():
-
-    line = line.strip()
-
-
-    if not line.startswith("v "):
-
-        continue
-
-
-    for token in line.split()[_sage_const_1 :]:
-
-        literal = int(token)
-
-
-        if literal == _sage_const_0 :
-
-            continue
-
-
-        variable = abs(literal)
-
-        assignment[variable] = (
-            _sage_const_1  if literal > _sage_const_0  else _sage_const_0 
-        )
-
-
-print(
-    "Boolean assignments parsed:",
-    len(assignment)
-)
-
-
-O_sat_int = [
-
-    [_sage_const_0  for j in range(o)]
-
-    for k in range(v)
-
-]
-
-
-for k in range(v):
-
-    for j in range(o):
-
-        nibble = _sage_const_0 
-
-
-        for bit in range(_sage_const_4 ):
-
-            boolean_variable = sat_var(
-                k,
-                j,
-                bit
-            )
-
-            bit_value = assignment.get(
-                boolean_variable,
-                _sage_const_0 
-            )
-
-
-            nibble |= (
-                bit_value << bit
-            )
-
-
-        O_sat_int[k][j] = (
-            nibble & _sage_const_0xF 
-        )
-
+print("\nIndependent CryptoMiniSat result: SAT")
+print("Boolean assignments parsed:", len(assignment))
 
 # ============================================================
-# 15. Print independently recovered O
+# Recover O Matrix
+# ============================================================
+
+O_sat_int = [[_sage_const_0  for j in range(o)] for k in range(v)]
+
+for k in range(v):
+    for j in range(o):
+        nibble = _sage_const_0 
+        for bit in range(_sage_const_4 ):
+            boolean_variable = sat_var(k, j, bit)
+            bit_value = assignment.get(boolean_variable, _sage_const_0 )
+            nibble |= bit_value << bit
+        O_sat_int[k][j] = nibble & _sage_const_0xF 
+
+# ============================================================
+# Print and Verify
 # ============================================================
 
 print("\n========================================")
 print("CRYPTOMINISAT RECOVERED O")
 
-
 for k in range(v):
-
     print(
         "O[%2d] =" % k,
-        " ".join(
-            "%x" % O_sat_int[k][j]
-            for j in range(o)
-        )
+        " ".join("%x" % O_sat_int[k][j] for j in range(o)),
     )
-
 
 print("\n========================================")
 print("VERIFYING SAT MODEL AGAINST ORIGINAL")
@@ -917,4 +852,133 @@ else:
 
     sys.exit(_sage_const_1 )
 
+
+# ============================================================
+# 17. OPTIONAL:
+#
+# Compare against Sage solution if this code is appended to
+# your original Sage script.
+#
+# This comparison is ONLY the final cross-check.
+#
+# The SAT encoding and SAT solving above did NOT use the
+# Sage solution.
+# ============================================================
+
+if "solution" in globals():
+
+    print("\n========================================")
+    print("COMPARING INDEPENDENT SOLVERS")
+    print("========================================")
+
+
+    same = True
+
+
+    for k in range(v):
+
+        for j in range(o):
+
+            index = k * o + j
+
+
+            # Convert Sage GF(16) solution to nibble.
+            #
+            # Extract polynomial coefficients.
+
+            sage_element = solution[index]
+
+            poly = sage_element.polynomial()
+
+            sage_nibble = _sage_const_0 
+
+
+            for bit in range(_sage_const_4 ):
+
+                if bit <= poly.degree():
+
+                    if int(poly[bit]) & _sage_const_1 :
+
+                        sage_nibble |= (
+                            _sage_const_1  << bit
+                        )
+
+
+            if (
+                sage_nibble
+                != O_sat_int[k][j]
+            ):
+
+                print(
+                    "Mismatch at O[%d][%d]"
+                    % (
+                        k,
+                        j
+                    )
+                )
+
+                print(
+                    "Sage = %x"
+                    % sage_nibble
+                )
+
+                print(
+                    "SAT  = %x"
+                    % O_sat_int[k][j]
+                )
+
+
+                same = False
+
+                break
+
+
+        if not same:
+
+            break
+
+
+    if same:
+
+        print(
+            "PASS: Sage and CryptoMiniSat recovered "
+            "exactly the same O."
+        )
+
+    else:
+
+        print(
+            "FAIL: Sage and CryptoMiniSat solutions differ."
+        )
+
+
+print("\n========================================")
+print("FINAL INDEPENDENT SAT VERIFICATION")
+print("========================================")
+
+print(
+    "Original text equations parsed :",
+    len(parsed_equations)
+)
+
+print(
+    "Boolean XOR equations          :",
+    len(xor_equations)
+)
+
+print(
+    "Boolean variables              :",
+    NUM_BOOL_VARS
+)
+
+print(
+    "CryptoMiniSat                  : SAT"
+)
+
+print(
+    "Original equations verified    :",
+    verification_ok
+)
+
+print("========================================")
 

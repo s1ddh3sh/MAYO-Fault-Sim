@@ -155,10 +155,10 @@ static void dump_linear_equations(
 
     reconstruct_full_P3(p, epk, P3_full);
 
-    FILE *fp = fopen("../mayo_equations_linear.txt", "w");
+    FILE *fp = fopen("../mayo_equations_quadratic.txt", "w");
 
     if (!fp) {
-        perror("mayo_equations_linear.txt");
+        perror("mayo_equations_quadratic.txt");
         free(P3_full);
         return;
     }
@@ -349,7 +349,7 @@ static void dump_linear_equations(
     free(P3_full);
 
     printf("\n");
-    printf("Linear system written to mayo_equations_linear.txt\n");
+    printf("Linear system written to mayo_equations_quadratic.txt\n");
     printf("Fault model : P1_times_O() completely skipped\n");
     printf("Relation    : P3 = O^T * P2\n");
     printf("Unknowns    : %d\n", v * o);
