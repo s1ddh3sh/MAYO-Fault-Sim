@@ -1,978 +1,1206 @@
+# Reads the original GF(16) equations:
+#     F(c)*x_k_j + ... == F(r)
+#
+# Builds the system as Sage polynomials over GF(16), then bit-blasts the
+# complete GF(16) polynomial system to a BooleanPolynomialRing over GF(2),
+# in the same style as gf2m_system_to_gf2() from the second code.
+#
+# The resulting Boolean ANF equations are sent to CryptoMiniSat.
+#
+# Supports Boolean equations of arbitrary monomial degree by introducing
+# Tseitin AND variables for nonlinear monomials.
 
-
-import re
-import subprocess
-import sys
+from sage.all import *
 from sage.sat.solvers.cryptominisat import CryptoMiniSat
-#from sage.sat.solvers.satsolver import SAT
+from collections import Counter
+import pycryptosat
+import re
+import sys
+import time
+
+# ============================================================
+# PARAMETERS
+# ============================================================
 
 v = 78
 o = 8
 
 NUM_GF16_VARS = v * o
-NUM_BOOL_VARS = NUM_GF16_VARS * 4
-
 INPUT_FILE = "mayo_equations_linear.txt"
-CNF_FILE = "mayo_independent_xor.cnf"
+BOOLEAN_EQ_FILE = "boolean_anf_equations.txt"
 
+# GF(16) = GF(2)[a] / (a^4 + a + 1)
+PR.<z> = PolynomialRing(GF(2))
+F.<a> = GF(2**4, modulus=z**4 + z + 1)
+
+# One GF(16) variable for every O[k][j].
+# Variable ordering:
+#   x_0_0, x_0_1, ..., x_77_7
+gf_names = ["x_%d_%d" % (k, j) for k in range(v) for j in range(o)]
+R = PolynomialRing(F, names=gf_names)
+Rvars = R.gens()
+
+gf_var_map = {}
+for k in range(v):
+    for j in range(o):
+        gf_var_map[(k, j)] = Rvars[k * o + j]
 
 print("Input file          :", INPUT_FILE)
 print("GF(16) variables    :", NUM_GF16_VARS)
-print("Boolean variables   :", NUM_BOOL_VARS)
+print("GF(16) field        :", F)
+print("Modulus             :", F.modulus())
 
 
-
-def gf16_add_int(x, y):
-
-    return (x ^^ y) & 0xF
-
-
-def gf16_mul_int(a, b):
-
-    a &= 0xF
-    b &= 0xF
-
-    result = 0
-
-    # Polynomial multiplication over GF(2)
-
-    for i in range(4):
-
-        if (b >> i) & 1:
-
-            result ^^= a << i
-
-    # Reduce degrees 6,5,4 modulo:
-    #
-    #     x^4 + x + 1
-    #
-    # Therefore:
-    #
-    #     x^d = x^(d-3) + x^(d-4)
-    #
-    # for d >= 4.
-
-    for degree in range(6, 3, -1):
-
-        if result & (1 << degree):
-
-            result ^^= (1 << degree)
-
-            result ^^= (1 << (degree - 3))
-
-            result ^^= (1 << (degree - 4))
-
-    return result & 0xF
-
-
-print("\nChecking independent GF(16) implementation...")
-
-
-for x in range(16):
-
-    if gf16_mul_int(x, 0) != 0:
-
-        raise RuntimeError(
-            "GF(16) test failed: x*0 != 0"
-        )
-
-    if gf16_mul_int(x, 1) != x:
-
-        raise RuntimeError(
-            "GF(16) test failed: x*1 != x"
-        )
-
-
-for x in range(16):
-
-    for y in range(16):
-
-        if gf16_mul_int(x, y) != gf16_mul_int(y, x):
-
-            raise RuntimeError(
-                "GF(16) multiplication is not commutative"
-            )
-
-
-print("PASS: independent GF(16) sanity checks")
-
-
-def gf_index(k, j):
-
-    return k * o + j
-
-
-def sat_var(k, j, bit):
-
-    return 4 * gf_index(k, j) + bit + 1
-
-
-def multiplication_matrix(c):
-
-    matrix = [
-        [0 for _ in range(4)]
-        for _ in range(4)
-    ]
-
-    for input_bit in range(4):
-
-        basis_element = 1 << input_bit
-
-        product = gf16_mul_int(
-            c,
-            basis_element
-        )
-
-        for output_bit in range(4):
-
-            matrix[output_bit][input_bit] = (
-                (product >> output_bit) & 1
-            )
-
-    return matrix
-
-
-MUL_MATRIX = {
-
-    c: multiplication_matrix(c)
-
-    for c in range(16)
-}
-
-
-
-# Variable term:
+# ============================================================
+# GF(16) INTEGER/NIBBLE CONVERSION
 #
-# F(number) * x_k_j
+# Integer c in F(c) is interpreted in polynomial-basis bits:
+#
+#   c = b0 + 2*b1 + 4*b2 + 8*b3
+#     -> b0 + b1*a + b2*a^2 + b3*a^3
+# ============================================================
+
+def int_to_gf16(c):
+    c = int(c) & 0xF
+    value = F(0)
+    for bit in range(4):
+        if (c >> bit) & 1:
+            value += a**bit
+    return value
+
+
+def gf16_to_int(c):
+    c = F(c)
+    poly = c.polynomial()
+    value = 0
+    for bit in range(4):
+        if bit <= poly.degree() and int(poly[bit]) & 1:
+            value |= (1 << bit)
+    return value & 0xF
+
+
+# Sanity-check the nibble mapping.
+for c in range(16):
+    if gf16_to_int(int_to_gf16(c)) != c:
+        raise RuntimeError("GF(16) nibble conversion failed for %d" % c)
+
+print("PASS: GF(16) nibble mapping sanity check")
+
+
+# ============================================================
+# PARSE ORIGINAL TEXT EQUATIONS INTO SAGE GF(16) POLYNOMIALS
+# ============================================================
 
 VARIABLE_TERM_RE = re.compile(
     r'^F\(\s*(\d+)\s*\)\s*\*\s*x_(\d+)_(\d+)$'
 )
 
-
-# Constant:
-#
-# F(number)
-
 CONSTANT_TERM_RE = re.compile(
     r'^F\(\s*(\d+)\s*\)$'
 )
+
 BARE_CONSTANT_RE = re.compile(
     r'^(\d+)$'
 )
 
-def parse_side(side):
 
+def parse_side_to_polynomial(side):
     """
-    Parse one side of an equation.
-
-    Returns:
-
-        variable_terms:
-            dictionary
-
-                (k,j) -> GF(16) nibble coefficient
-
-        constant:
-            GF(16) nibble
+    Convert one textual side into a polynomial in R over GF(16).
     """
-
-    variable_terms = {}
-
-    constant = 0
-
-
-    # Normalize whitespace
-
     side = side.strip()
 
-
     if side == "":
-        return variable_terms, constant
+        return R(0)
 
+    result = R(0)
 
-    # Equations generated by the C code use '+' between terms.
-    #
-    # In characteristic 2:
-    #
-    #       subtraction = addition
-    #
-    # but the input is expected to contain '+'.
-
-    terms = side.split("+")
-
-
-    for raw_term in terms:
-
+    for raw_term in side.split("+"):
         term = raw_term.strip()
 
         if not term:
             continue
 
-
-        # -----------------------------------------------
-        # Variable term:
-        #
-        # F(c)*x_k_j
-        # -----------------------------------------------
-
-        match = VARIABLE_TERM_RE.match(term)
-
-        if match:
-
-            coeff = int(match.group(1)) & 0xF
-            k = int(match.group(2))
-            j = int(match.group(3))
-
+        m = VARIABLE_TERM_RE.match(term)
+        if m:
+            coeff = int_to_gf16(int(m.group(1)))
+            k = int(m.group(2))
+            j = int(m.group(3))
 
             if not (0 <= k < v):
-
-                raise ValueError(
-                    "Invalid oil row index: %d" % k
-                )
-
+                raise ValueError("Invalid row index k=%d" % k)
 
             if not (0 <= j < o):
+                raise ValueError("Invalid column index j=%d" % j)
 
-                raise ValueError(
-                    "Invalid oil column index: %d" % j
+            result += R(coeff) * gf_var_map[(k, j)]
+            continue
+
+        m = CONSTANT_TERM_RE.match(term)
+        if m:
+            result += R(int_to_gf16(int(m.group(1))))
+            continue
+
+        m = BARE_CONSTANT_RE.match(term)
+        if m:
+            result += R(int_to_gf16(int(m.group(1))))
+            continue
+
+        raise ValueError("Could not parse term: %s" % term)
+
+    return result
+
+
+def parse_equation_to_polynomial(line):
+    """
+    Parse:
+        lhs == rhs
+
+    and return the GF(16) polynomial:
+        lhs + rhs
+
+    because subtraction equals addition in characteristic 2.
+    The equation represented is therefore:
+        lhs + rhs = 0
+    """
+    if "==" not in line:
+        raise ValueError("Equation does not contain ==:\n%s" % line)
+
+    lhs_text, rhs_text = line.split("==", 1)
+
+    lhs = parse_side_to_polynomial(lhs_text)
+    rhs = parse_side_to_polynomial(rhs_text)
+
+    return lhs + rhs
+
+
+gf16_system = []
+
+with open(INPUT_FILE, "r") as fp:
+    for line_no, line in enumerate(fp, start=1):
+        line = line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        try:
+            f = parse_equation_to_polynomial(line)
+        except Exception as e:
+            print("\nERROR parsing line", line_no)
+            print(line)
+            print("Reason:", e)
+            raise
+
+        gf16_system.append(f)
+
+print("\nParsed GF(16) polynomial equations:", len(gf16_system))
+
+if not gf16_system:
+    raise RuntimeError("No equations were parsed")
+
+degrees = [f.total_degree() for f in gf16_system]
+print("Maximum GF(16) polynomial degree  :", max(degrees))
+print("All GF(16) equations linear       :", max(degrees) <= 1)
+
+
+# ============================================================
+# GF(2^4) POLYNOMIAL SYSTEM -> BOOLEAN POLYNOMIAL SYSTEM
+#
+# This is the same general conversion style as the SECOND code:
+#
+#   each GF(16) variable x becomes four Boolean variables
+#
+#       x_0, x_1, x_2, x_3
+#
+#   representing
+#
+#       x = x_0 + x_1*a + x_2*a^2 + x_3*a^3.
+#
+# GF(16) multiplication is expanded as polynomial multiplication
+# over GF(2), followed by reduction modulo a^4 + a + 1.
+#
+# Unlike the old first code, this does NOT use precomputed
+# multiplication matrices. It bit-blasts the Sage GF(16)
+# polynomial system directly.
+# ============================================================
+
+def gf2m_system_to_gf2(system):
+    """
+    Convert a polynomial system over GF(2^m) into a Boolean
+    polynomial system over GF(2).
+
+    For GF(16), each field variable:
+
+        x
+
+    is represented as:
+
+        x = x_b0
+          + x_b1*a
+          + x_b2*a^2
+          + x_b3*a^3
+
+    using the polynomial basis defined by:
+
+        a^4 + a + 1 = 0
+
+    Each GF(16) equation produces exactly 4 Boolean equations.
+    """
+
+    if not system:
+        raise ValueError(
+            "GF(16) system is empty"
+        )
+
+    # ========================================================
+    # Original polynomial ring over GF(16)
+    # ========================================================
+
+    R_ext = system[0].parent()
+
+    F_ext = R_ext.base_ring()
+
+    m = F_ext.degree()
+
+    vars_ext = list(
+        R_ext.gens()
+    )
+
+    n = len(vars_ext)
+
+    print("\n========================================")
+    print("GF(16) -> GF(2) CONVERSION")
+    print("========================================")
+
+    print(
+        "Extension degree m :",
+        m
+    )
+
+    print(
+        "GF(16) variables   :",
+        n
+    )
+
+    print(
+        "GF(16) equations   :",
+        len(system)
+    )
+
+    # ========================================================
+    # Modulus
+    #
+    # For MAYO:
+    #
+    #     a^4 + a + 1
+    #
+    # ========================================================
+
+    modulus = F_ext.modulus()
+
+    modulus_coeffs = list(
+        modulus.list()
+    )
+
+    print(
+        "GF(16) modulus     :",
+        modulus
+    )
+
+    # ========================================================
+    # Boolean ring
+    #
+    # Each GF(16) variable gets m Boolean variables.
+    # ========================================================
+
+    bool_names = []
+
+    for var in vars_ext:
+
+        for bit in range(m):
+
+            bool_names.append(
+                "%s_b%d"
+                %
+                (
+                    str(var),
+                    bit
                 )
-
-
-            key = (k, j)
-
-
-            # If the same variable appears multiple times:
-            #
-            #     c1*x + c2*x
-            #
-            # combine coefficients using GF(16) addition,
-            # which is XOR.
-
-            old = variable_terms.get(
-                key,
-                0
             )
 
-            new = gf16_add_int(
-                old,
+    B = BooleanPolynomialRing(
+        n * m,
+        names=bool_names
+    )
+
+    Bvars = list(
+        B.gens()
+    )
+
+    # ========================================================
+    # Map:
+    #
+    # GF(16):
+    #
+    #     x_0_0
+    #
+    # ->
+    #
+    # GF(2):
+    #
+    #     [
+    #       x_0_0_b0,
+    #       x_0_0_b1,
+    #       x_0_0_b2,
+    #       x_0_0_b3
+    #     ]
+    #
+    # ========================================================
+
+    var_bits = {}
+
+    index = 0
+
+    for var in vars_ext:
+
+        var_bits[var] = list(
+            Bvars[
+                index:
+                index + m
+            ]
+        )
+
+        index += m
+
+    # ========================================================
+    # Convert GF(16) element -> bit vector
+    #
+    # Example:
+    #
+    #     a^3 + a + 1
+    #
+    # ->
+    #
+    #     [1,1,0,1]
+    #
+    # ========================================================
+
+    def field_element_to_bits(c):
+
+        c = F_ext(c)
+
+        poly = c.polynomial()
+
+        coeffs = list(
+            poly.list()
+        )
+
+        coeffs += [
+            0
+        ] * (
+            m - len(coeffs)
+        )
+
+        return [
+
+            B(
+                int(coeffs[i])
+            )
+
+            for i in range(m)
+
+        ]
+
+    # ========================================================
+    # GF(16) symbolic multiplication
+    #
+    # Inputs:
+    #
+    #     u = [u0,u1,u2,u3]
+    #     v = [v0,v1,v2,v3]
+    #
+    # representing:
+    #
+    #     u0 + u1*a + ...
+    #
+    # Multiply polynomially, then reduce modulo:
+    #
+    #     a^4 + a + 1
+    #
+    # ========================================================
+
+    def field_mult(u_bits, v_bits):
+
+        tmp = [
+
+            B(0)
+
+            for _ in range(
+                2 * m - 1
+            )
+
+        ]
+
+        # ----------------------------------------------------
+        # Polynomial multiplication
+        # ----------------------------------------------------
+
+        for i in range(m):
+
+            for j in range(m):
+
+                tmp[i + j] += (
+                    u_bits[i]
+                    *
+                    v_bits[j]
+                )
+
+        # ----------------------------------------------------
+        # Modular reduction
+        #
+        # modulus:
+        #
+        #     a^m + p_(m-1)a^(m-1) + ... + p0
+        #
+        # Since characteristic = 2:
+        #
+        #     a^m =
+        #       p_(m-1)a^(m-1) + ... + p0
+        #
+        # ----------------------------------------------------
+
+        for degree in range(
+            2 * m - 2,
+            m - 1,
+            -1
+        ):
+
+            high = tmp[
+                degree
+            ]
+
+            if high == B(0):
+
+                continue
+
+            for i in range(m):
+
+                if (
+                    int(
+                        modulus_coeffs[i]
+                    )
+                    & 1
+                ):
+
+                    tmp[
+                        degree - m + i
+                    ] += high
+
+            tmp[
+                degree
+            ] = B(0)
+
+        return tmp[:m]
+
+    # ========================================================
+    # Multiply bit vector by GF variable^exponent
+    # ========================================================
+
+    def multiply_by_variable_power(
+        term_bits,
+        variable,
+        exponent
+    ):
+
+        result = list(
+            term_bits
+        )
+
+        bits = var_bits[
+            variable
+        ]
+
+        for _ in range(
+            exponent
+        ):
+
+            result = field_mult(
+                result,
+                bits
+            )
+
+        return result
+
+    # ========================================================
+    # MAIN CONVERSION
+    # ========================================================
+
+    boolean_eqs = []
+
+    print(
+        "\nConverting equations..."
+    )
+
+    for eq_index, f in enumerate(
+        system
+    ):
+
+        # Resulting GF(16) value:
+        #
+        #     result[0]
+        #       + result[1]*a
+        #       + result[2]*a^2
+        #       + result[3]*a^3
+
+        result = [
+
+            B(0)
+
+            for _ in range(m)
+
+        ]
+
+        # ====================================================
+        # IMPORTANT FIX
+        #
+        # Explicitly iterate over Sage monomials instead of
+        # relying on f.dict().
+        # ====================================================
+
+        monomials = f.monomials()
+
+        for mon in monomials:
+
+            # ------------------------------------------------
+            # Get coefficient of this monomial
+            # ------------------------------------------------
+
+            coeff = F_ext(
+                f.monomial_coefficient(
+                    mon
+                )
+            )
+
+            # Start term with coefficient bits
+            term_bits = field_element_to_bits(
                 coeff
             )
 
+            # ------------------------------------------------
+            # Extract exponent tuple
+            #
+            # Example:
+            #
+            #     x0*x3^2
+            #
+            # ->
+            #
+            #     (1,0,0,2,...)
+            #
+            # ------------------------------------------------
 
-            if new == 0:
+            exponent_tuple = tuple(
+                mon.exponents()[0]
+            )
 
-                variable_terms.pop(
-                    key,
-                    None
+            if len(
+                exponent_tuple
+            ) != n:
+
+                raise RuntimeError(
+                    "Exponent tuple length mismatch: "
+                    "%d != %d"
+                    %
+                    (
+                        len(
+                            exponent_tuple
+                        ),
+                        n
+                    )
                 )
 
-            else:
+            # ------------------------------------------------
+            # Multiply coefficient by every variable power
+            # ------------------------------------------------
 
-                variable_terms[key] = new
+            for var_index, exponent in enumerate(
+                exponent_tuple
+            ):
 
+                exponent = int(
+                    exponent
+                )
 
-            continue
+                if exponent == 0:
 
+                    continue
 
-        # -----------------------------------------------
-        # Constant:
-        #
-        # F(c)
-        # -----------------------------------------------
+                variable = vars_ext[
+                    var_index
+                ]
 
-        match = CONSTANT_TERM_RE.match(term)
+                term_bits = (
+                    multiply_by_variable_power(
+                        term_bits,
+                        variable,
+                        exponent
+                    )
+                )
 
-        if match:
+            # ------------------------------------------------
+            # Add term into equation
+            #
+            # GF(16) addition = component-wise XOR
+            # ------------------------------------------------
 
-            value = int(
-                match.group(1)
-            ) & 0xF
+            for bit in range(m):
 
-            constant = gf16_add_int(
-                constant,
-                value
+                result[
+                    bit
+                ] += term_bits[
+                    bit
+                ]
+
+        # ----------------------------------------------------
+        # Each GF(16) equation gives m Boolean equations.
+        # ----------------------------------------------------
+
+        for bit in range(m):
+
+            boolean_eqs.append(
+                B(
+                    result[
+                        bit
+                    ]
+                )
             )
 
-            continue
+        
 
-        match = BARE_CONSTANT_RE.match(term)
+    # ========================================================
+    # FINAL SANITY CHECK
+    # ========================================================
 
-        if match:
-
-            value = int(
-                match.group(1)
-            ) & 0xF
-
-            constant = gf16_add_int(
-                constant,
-                value
-            )
-
-            continue
-
-        raise ValueError(
-            "Could not parse term:\n%s"
-            % term
-        )
-
-
-    return variable_terms, constant
-
-
-# ============================================================
-# 7. Parse a complete equation
-#
-#       lhs == rhs
-#
-# Move everything to the left:
-#
-#       lhs + rhs = 0
-#
-# because characteristic = 2.
-# ============================================================
-
-def parse_equation(line):
-
-    if "==" not in line:
-
-        raise ValueError(
-            "Equation does not contain ==:\n%s"
-            % line
-        )
-
-
-    lhs_text, rhs_text = line.split(
-        "==",
-        1
-    )
-
-
-    lhs_vars, lhs_const = parse_side(
-        lhs_text
-    )
-
-    rhs_vars, rhs_const = parse_side(
-        rhs_text
-    )
-
-
-    # Combine both sides:
-    #
-    # lhs - rhs = 0
-    #
-    # Over characteristic 2:
-    #
-    # lhs + rhs = 0
-
-    variables = dict(lhs_vars)
-
-
-    for key, coeff in rhs_vars.items():
-
-        old = variables.get(
-            key,
-            0
-        )
-
-        new = gf16_add_int(
-            old,
-            coeff
-        )
-
-        if new == 0:
-
-            variables.pop(
-                key,
-                None
-            )
-
-        else:
-
-            variables[key] = new
-
-
-    constant = gf16_add_int(
-        lhs_const,
-        rhs_const
-    )
-
-
-    # Equation is now:
-    #
-    #       sum(coeff*x) + constant = 0
-    #
-    # therefore:
-    #
-    #       sum(coeff*x) = constant
-    #
-    # since -constant = constant in characteristic 2.
-
-    rhs = constant
-
-
-    return variables, rhs
-
-
-parsed_equations = []
-
-
-with open(INPUT_FILE, "r") as fp:
-
-    for line_no, line in enumerate(
-        fp,
-        start=1
-    ):
-
-        line = line.strip()
-
-
-        if not line:
-
-            continue
-
-
-        if line.startswith("#"):
-
-            continue
-
-
-        try:
-
-            variables, rhs = parse_equation(
-                line
-            )
-
-        except Exception as e:
-
-            print(
-                "\nERROR parsing line",
-                line_no
-            )
-
-            print(line)
-
-            print(
-                "\nReason:",
-                e
-            )
-
-            raise
-
-
-        parsed_equations.append(
-            (
-                variables,
-                rhs
-            )
-        )
-
-
-print(
-    "\nParsed GF(16) equations:",
-    len(parsed_equations)
-)
-
-
-if len(parsed_equations) != 2808:
+    print("\n========================================")
+    print("GF(16) -> GF(2) CONVERSION SUMMARY")
+    print("========================================")
 
     print(
-        "WARNING: expected 2808 equations"
+        "GF(16) equations :",
+        len(system)
     )
 
+    print(
+        "Expected Boolean :",
+        len(system) * m
+    )
 
-# ============================================================
-# 9. Convert each GF(16) equation into four XOR equations
-#
-# For:
-#
-#       sum_j c_j*x_j = rhs
-#
-# generate:
-#
-#       bit equation 0
-#       bit equation 1
-#       bit equation 2
-#       bit equation 3
-#
-# over GF(2).
-# ============================================================
+    print(
+        "Actual Boolean   :",
+        len(boolean_eqs)
+    )
 
-xor_equations = []
+    nonzero = sum(
 
+        1
 
-for eq_index, (variables, rhs) in enumerate(
-    parsed_equations
-):
+        for f in boolean_eqs
 
-    xor_sets = [
+        if f != B(0)
 
-        set(),
-        set(),
-        set(),
-        set()
+    )
 
-    ]
+    print(
+        "Nonzero Boolean  :",
+        nonzero
+    )
 
+    print(
+        "Zero Boolean     :",
+        len(boolean_eqs)
+        -
+        nonzero
+    )
 
-    for (k, j), coeff in variables.items():
+    if len(boolean_eqs) != (
+        len(system) * m
+    ):
 
-        matrix = MUL_MATRIX[coeff]
-
-
-        for output_bit in range(4):
-
-            for input_bit in range(4):
-
-                if matrix[output_bit][input_bit]:
-
-                    variable = sat_var(
-                        k,
-                        j,
-                        input_bit
-                    )
-
-
-                    # XOR insertion:
-                    #
-                    # x XOR x = 0
-
-                    if variable in xor_sets[output_bit]:
-
-                        xor_sets[output_bit].remove(
-                            variable
-                        )
-
-                    else:
-
-                        xor_sets[output_bit].add(
-                            variable
-                        )
-
-
-    # RHS nibble -> four RHS bits
-
-    for output_bit in range(4):
-
-        rhs_bit = (
-            rhs >> output_bit
-        ) & 1
-
-
-        xor_equations.append(
-            (
-                sorted(
-                    xor_sets[output_bit]
-                ),
-                rhs_bit
-            )
+        raise RuntimeError(
+            "Incorrect number of Boolean equations"
         )
 
+    if nonzero == 0:
 
-print(
-    "Generated XOR equations:",
-    len(xor_equations)
-)
+        raise RuntimeError(
+            "ALL Boolean equations became zero. "
+            "GF(16) -> GF(2) conversion failed."
+        )
 
-
-expected_xor = (
-    len(parsed_equations) * 4
-)
-
-
-print(
-    "Expected XOR equations :",
-    expected_xor
-)
-
-
-if len(xor_equations) != expected_xor:
-
-    raise RuntimeError(
-        "Incorrect XOR equation count"
+    return (
+        B,
+        var_bits,
+        boolean_eqs
     )
 
-XOR_TXT_FILE = "boolean_xor_equations.txt"
 
 print("\n========================================")
-print("WRITING ALL BOOLEAN XOR EQUATIONS TO FILE")
+print("CHECKING ORIGINAL GF(16) SYSTEM")
 print("========================================")
 
-is_linear = True
+for i in range(min(3, len(gf16_system))):
 
-with open(XOR_TXT_FILE, "w") as fp:
-    fp.write(f"# Generated Boolean XOR Equations over GF(2)\n")
-    fp.write(f"# Total Equations: {len(xor_equations)}\n")
-    fp.write(f"# Total Variables: {NUM_BOOL_VARS}\n\n")
+    f = gf16_system[i]
 
-    for eq_idx, (vars_list, rhs_bit) in enumerate(xor_equations):
-        # Format variables into readable terms: x1 ^ x5 ^ x12 ...
-        var_names = [f"x{v}" for v in vars_list]
-        lhs_str = " ^ ".join(var_names) if var_names else "0"
+    print("\nEquation", i)
 
-        # Check linearity: every term must be a single boolean variable
-        # (No AND products x_a * x_b present)
-        if not isinstance(vars_list, (list, set, tuple)):
-            is_linear = False
+    print(
+        "Polynomial:",
+        f
+    )
 
-        fp.write(f"Eq {eq_idx + 1:5d}: {lhs_str} = {rhs_bit}\n")
+    print(
+        "Is zero:",
+        f == 0
+    )
 
-print(f"Successfully wrote {len(xor_equations)} equations to: {XOR_TXT_FILE}")
-print("System Linear over GF(2) :", "YES" if is_linear else "NO")
-print("========================================\n")
+    print(
+        "Degree:",
+        f.total_degree()
+    )
 
-# ============================================================
-# 10. Write CryptoMiniSat XOR-DIMACS
-#
-# CryptoMiniSat XOR syntax:
-#
-#       x lit1 lit2 ... 0
-#
-# represents an XOR constraint with RHS true.
-#
-# Therefore:
-#
-#       XOR(vars) = 1
-#
-# can be written directly.
-#
-# For:
-#
-#       XOR(vars) = 0
-#
-# negate exactly one literal:
-#
-#       XOR(~x1,x2,...)=1
-# ============================================================
-
-def solve_with_cryptominisat(xor_eqs, num_vars):
-    """Solves XOR equations directly using Sage's CryptoMiniSat interface."""
-    solver = CryptoMiniSat()
-
-    for vars_list, rhs_bit in xor_eqs:
-        # add_xor_clause accepts 1-indexed integers and a boolean parity (rhs_bit)
-        solver.add_xor_clause(vars_list, bool(rhs_bit))
-
-    # Sage's CryptoMiniSat uses __call__() instead of solve()
-    # It returns a tuple: (is_sat, solution_tuple)
-    solution_tuple = solver()
-
-    if not solution_tuple:
-        return None
-
-    # solution_tuple is a 1-indexed tuple where solution_tuple[i] is True/False
-    # Note: Sage returns True/False values in 1-based indexing for solution_tuple
-    assignment = {}
-    for var_id in range(1, num_vars + 1):
-        assignment[var_id] = 1 if solution_tuple[var_id] else 0
-
-    return assignment
-
-
-
-with open(CNF_FILE, "w") as fp:
-
-    fp.write(
-        "p cnf %d %d\n"
-        % (
-            NUM_BOOL_VARS,
-            len(xor_equations)
+    print(
+        "Number monomials:",
+        len(
+            f.monomials()
         )
     )
 
+    print(
+        "First monomials:",
+        f.monomials()[:5]
+    )
 
-    for variables, rhs in xor_equations:
+    print(
+        "First coefficients:",
+        f.coefficients()[:5]
+    )
 
 
-        # -----------------------------------------------
-        # Empty XOR
-        # -----------------------------------------------
+print("\n========================================")
+print("BIT-BLASTING GF(16) -> GF(2)")
+print("========================================")
 
-        if len(variables) == 0:
+t0 = time.time()
 
-            if rhs == 0:
+B, var_bits, boolean_eqs = gf2m_system_to_gf2(gf16_system)
 
-                # Tautological XOR:
-                #
-                # x XOR ~x = 1
+print("Boolean variables       :", B.ngens())
+print("Boolean equations       :", len(boolean_eqs))
+print("Expected equations      :", 4 * len(gf16_system))
+print("Bit-blast time          : %.3f s" % (time.time() - t0))
 
-                fp.write(
-                    "x 1 -1 0\n"
-                )
+bool_degrees = [f.degree() for f in boolean_eqs if f != 0]
+max_bool_degree = max(bool_degrees) if bool_degrees else 0
 
+print("Maximum Boolean degree  :", max_bool_degree)
+print("Boolean system linear   :", max_bool_degree <= 1)
+
+
+# ============================================================
+# WRITE BOOLEAN ANF EQUATIONS
+# ============================================================
+
+with open(BOOLEAN_EQ_FILE, "w") as fp:
+    fp.write("# Boolean ANF equations generated from GF(16)\n")
+    fp.write("# Each line is polynomial = 0 over GF(2)\n")
+    fp.write("# Boolean variables: %d\n" % B.ngens())
+    fp.write("# Boolean equations: %d\n\n" % len(boolean_eqs))
+
+    for i, f in enumerate(boolean_eqs, start=1):
+        fp.write("Eq %5d: %s = 0\n" % (i, f))
+
+print("Written Boolean ANF system:", BOOLEAN_EQ_FILE)
+
+
+# ============================================================
+# BOOLEAN ANF -> CRYPTOMINISAT
+#
+# Each Boolean polynomial:
+#
+#   m1 + m2 + ... + c = 0
+#
+# becomes an XOR constraint:
+#
+#   m1 XOR m2 XOR ... = c
+#
+# For nonlinear monomials, introduce a fresh SAT variable z and
+# encode:
+#
+#   z <-> AND(x1, x2, ..., xd)
+#
+# using CNF:
+#
+#   (~z OR xi)              for every xi
+#   (z OR ~x1 OR ... OR ~xd)
+#
+# Then z is used in the XOR clause.
+# ============================================================
+
+
+from sage.sat.solvers.satsolver import SAT
+
+def solve_with_sage_sat(boolean_eqs):
+    # Pass "cryptominisat" or "picosat" or "glucose"
+    solver = SAT("cryptominisat")  
+    
+    # Solve the Boolean Polynomial System directly
+    solution = solver(boolean_eqs)
+    
+    if solution is False or solution is None:
+        return None
+    
+    # solution is a tuple/dict of variable assignments
+    # Convert to dict if needed
+    if isinstance(solution, dict):
+        return solution
+    elif isinstance(solution, (tuple, list)):
+        # If it's a tuple/list, try to map to variables
+        B = boolean_eqs[0].parent()
+        vars_B = list(B.gens())
+        result = {}
+        for i, var in enumerate(vars_B):
+            if i < len(solution):
+                result[var] = bool(solution[i])
+        return result
+    else:
+        return solution
+
+
+def solve_with_pycryptosat(boolean_eqs):
+    if not boolean_eqs:
+        return {}
+
+    B = boolean_eqs[0].parent()
+    vars_B = list(B.gens())
+
+    # pycryptosat uses 0-based indexing for variables
+    var_map = {v: i for i, v in enumerate(vars_B)}
+    next_var = len(vars_B)
+
+    solver = pycryptosat.Solver()
+    product_map = {}
+
+    def get_product_var(x, y):
+        nonlocal next_var
+        key = tuple(sorted((x, y), key=str))
+        if key in product_map:
+            return product_map[key]
+
+        z = next_var
+        next_var += 1
+        product_map[key] = z
+
+        # z = x AND y encoded into CNF clauses
+        # (¬z ∨ x) ∧ (¬z ∨ y) ∧ (¬x ∨ ¬y ∨ z)
+        # Note: 1-based literals in pycryptosat clauses (+N for pos, -N for neg)
+        vx = var_map[x] + 1
+        vy = var_map[y] + 1
+        vz = z + 1
+
+        solver.add_clause([-vz, vx])
+        solver.add_clause([-vz, vy])
+        solver.add_clause([-vx, -vy, vz])
+
+        return z
+
+    for f in boolean_eqs:
+        raw_xor_vars = []
+        const_term = 0
+
+        for mon in f.monomials():
+            vars_in_mon = mon.variables()
+
+            if len(vars_in_mon) == 0:
+                const_term ^= 1
+            elif len(vars_in_mon) == 1:
+                raw_xor_vars.append(var_map[vars_in_mon[0]])
+            elif len(vars_in_mon) == 2:
+                z = get_product_var(vars_in_mon[0], vars_in_mon[1])
+                raw_xor_vars.append(z)
             else:
+                raise NotImplementedError("Only degree <= 2 supported")
 
-                # Contradiction
+        # Simplify duplicate XOR terms (x ^ x = 0)
+        counts = Counter(raw_xor_vars)
+        simplified_vars = [var_id for var_id, count in counts.items() if count % 2 == 1]
 
-                fp.write(
-                    "0\n"
-                )
-
+        if not simplified_vars:
+            if const_term == 1:
+                # Contradiction 0 = 1
+                solver.add_clause([1])
+                solver.add_clause([-1])
             continue
 
+        # pycryptosat add_xor_clause takes 1-based variable IDs and boolean RHS
+        # Convert to tuple of explicit integers
+        xor_vars_1based = tuple(int(v) + 1 for v in simplified_vars)
+        solver.add_xor_clause(xor_vars_1based, bool(const_term))
 
-        literals = list(
-            variables
-        )
+    sat, solution = solver.solve()
 
+    if not sat:
+        return None
 
-        # CryptoMiniSat XOR lines have implicit RHS = 1.
-        #
-        # Negating one variable toggles parity.
+    # solution is a tuple of booleans/None starting at index 1
+    # Index 0 is dummy/padding in pycryptosat output tuple
+    result = {v: bool(solution[var_map[v] + 1]) for v in vars_B}
+    return result
 
-        if rhs == 0:
+def solve_with_cryptominisat(boolean_eqs):
+    if not boolean_eqs:
+        return {}
 
-            literals[0] = -literals[0]
+    B = boolean_eqs[0].parent()
+    vars_B = list(B.gens())
 
+    solver = CryptoMiniSat()
+    
+    # Map Boolean variables -> 1-based CMS variable IDs
+    var_map = {v: i + 1 for i, v in enumerate(vars_B)}
+    next_var = len(vars_B) + 1
 
-        fp.write(
-            "x "
-            + " ".join(
-                str(x)
-                for x in literals
-            )
-            + " 0\n"
-        )
+    product_map = {}
 
+    def get_product_var(x, y):
+        nonlocal next_var
 
-print(
-    "\nWritten:",
-    CNF_FILE
-)
+        # Sort variables to ensure unique keys for commutative multiplication
+        key = tuple(sorted((x, y), key=str))
+        if key in product_map:
+            return product_map[key]
 
+        z = next_var
+        next_var += 1
+        product_map[key] = z
+
+        # Direct CNF clauses for z = x AND y
+        # (¬z ∨ x) ∧ (¬z ∨ y) ∧ (¬x ∨ ¬y ∨ z)
+        solver.add_clause([-z, var_map[x]])
+        solver.add_clause([-z, var_map[y]])
+        solver.add_clause([-var_map[x], -var_map[y], z])
+
+        return z
+
+    for f in boolean_eqs:
+        raw_xor_vars = []
+        const_term = 0
+
+        for mon in f.monomials():
+            vars_in_mon = mon.variables()
+
+            if len(vars_in_mon) == 0:
+                const_term ^= 1
+            elif len(vars_in_mon) == 1:
+                raw_xor_vars.append(var_map[vars_in_mon[0]])
+            elif len(vars_in_mon) == 2:
+                z = get_product_var(vars_in_mon[0], vars_in_mon[1])
+                raw_xor_vars.append(z)
+            else:
+                raise NotImplementedError("Only degree <= 2 supported")
+
+        # FIX BUG 2: Reduce duplicate variables in XOR clauses (x ^ x = 0)
+        counts = Counter(raw_xor_vars)
+        simplified_xor_vars = [var_id for var_id, count in counts.items() if count % 2 == 1]
+
+        # Handle simplified XOR edge cases
+        if not simplified_xor_vars:
+            if const_term == 1:
+                # 0 = 1 (Unsatisfiable equation like x ^ x = 1)
+                solver.add_clause([1])
+                solver.add_clause([-1])
+            continue
+
+        # Add the cleaned XOR clause
+        solver.add_xor_clause(tuple(simplified_xor_vars), rhs=bool(const_term))
+
+    sat = solver()
+
+    if not sat:
+        return None
+    
+    # Extract original variable values from the solver
+    result = {}
+    for v in vars_B:
+        idx = var_map[v]
+        # Get the variable value from the solver (1-based indexing)
+        val = solver.var_value(idx)
+        result[v] = bool(val) if val is not None else False
+
+    return result
+used_original_vars = set()
+
+for f in boolean_eqs:
+    for mon in f.monomials():
+        for var in mon.variables():
+            used_original_vars.add(var)
+
+print("\n========================================")
+print("BOOLEAN VARIABLE USAGE")
+print("========================================")
+print("Variables in Boolean ring :", B.ngens())
+print("Variables actually used   :", len(used_original_vars))
+print("Unused/free variables     :", B.ngens() - len(used_original_vars))
+
+unused = [
+    v for v in B.gens()
+    if v not in used_original_vars
+]
+
+if unused:
+    print("\nFirst unused variables:")
+    for x in unused[:20]:
+        print(" ", x)
+
+print("\n========================================")
 print("RUNNING CRYPTOMINISAT")
+print("========================================")
 
-assignment = solve_with_cryptominisat(xor_equations, NUM_BOOL_VARS)
+solve_start = time.time()
+assignment = solve_with_cryptominisat(boolean_eqs)
+solve_time = time.time() - solve_start
 
 if assignment is None:
     print("\n========================================")
     print("RESULT: UNSAT")
-    print("Independent SAT verification disagrees with Sage.")
     print("========================================")
     sys.exit(1)
 
-print("\nIndependent CryptoMiniSat result: SAT")
-print("Boolean assignments parsed:", len(assignment))
+print("\nRESULT: SAT")
+print("CryptoMiniSat solve time: %.3f s" % solve_time)
 
 # ============================================================
-# Recover O Matrix
+# RECOVER GF(16) O MATRIX FROM BOOLEAN ASSIGNMENT
 # ============================================================
 
-O_sat_int = [[0 for j in range(o)] for k in range(v)]
+O_sat_int = [
+    [0 for _ in range(o)]
+    for _ in range(v)
+]
+
+O_sat_F = Matrix(F, v, o)
 
 for k in range(v):
     for j in range(o):
-        nibble = 0
-        for bit in range(4):
-            boolean_variable = sat_var(k, j, bit)
-            bit_value = assignment.get(boolean_variable, 0)
-            nibble |= bit_value << bit
-        O_sat_int[k][j] = nibble & 0xF
+        gf_var = gf_var_map[(k, j)]
+        bits = var_bits[gf_var]
 
-# ============================================================
-# Print and Verify
-# ============================================================
+        nibble = 0
+
+        for bit in range(4):
+            # Handle missing keys in assignment (treat as False)
+            bit_value = assignment.get(bits[bit], False) if isinstance(assignment, dict) else False
+            nibble |= (bit_value << bit)
+
+        nibble &= 0xF
+
+        O_sat_int[k][j] = nibble
+        O_sat_F[k, j] = int_to_gf16(nibble)
+
 
 print("\n========================================")
 print("CRYPTOMINISAT RECOVERED O")
+print("========================================")
 
 for k in range(v):
     print(
         "O[%2d] =" % k,
-        " ".join("%x" % O_sat_int[k][j] for j in range(o)),
+        " ".join(
+            "%x" % O_sat_int[k][j]
+            for j in range(o)
+        )
     )
 
+
+# ============================================================
+# VERIFY AGAINST ORIGINAL GF(16) POLYNOMIAL SYSTEM
+# ============================================================
+
 print("\n========================================")
-print("VERIFYING SAT MODEL AGAINST ORIGINAL")
-print("TEXT EQUATIONS")
+print("VERIFYING AGAINST ORIGINAL GF(16) SYSTEM")
 print("========================================")
 
+gf_subs = {}
+
+for k in range(v):
+    for j in range(o):
+        gf_subs[gf_var_map[(k, j)]] = O_sat_F[k, j]
 
 verification_ok = True
 
+for eq_index, f in enumerate(gf16_system):
+    value = F(f.subs(gf_subs))
 
-for eq_index, (variables, rhs) in enumerate(
-    parsed_equations
-):
-
-    lhs = 0
-
-
-    for (k, j), coeff in variables.items():
-
-        product = gf16_mul_int(
-            coeff,
-            O_sat_int[k][j]
-        )
-
-
-        lhs = gf16_add_int(
-            lhs,
-            product
-        )
-
-
-    if lhs != rhs:
-
-        print(
-            "FAIL at equation",
-            eq_index
-        )
-
-        print(
-            "Computed LHS = %x" % lhs
-        )
-
-        print(
-            "Expected RHS = %x" % rhs
-        )
-
-
+    if value != 0:
+        print("FAIL at GF(16) equation", eq_index + 1)
+        print("Residual:", value)
         verification_ok = False
-
         break
 
-
 if verification_ok:
-
     print(
-        "PASS: all original GF(16) equations satisfied"
+        "PASS: all %d original GF(16) equations satisfied"
+        % len(gf16_system)
     )
-
 else:
-
-    print(
-        "FAIL: SAT model does not satisfy original equations"
-    )
-
+    print("FAIL: CryptoMiniSat model does not satisfy GF(16) equations")
     sys.exit(1)
 
 
 # ============================================================
-# 17. OPTIONAL:
-#
-# Compare against Sage solution if this code is appended to
-# your original Sage script.
-#
-# This comparison is ONLY the final cross-check.
-#
-# The SAT encoding and SAT solving above did NOT use the
-# Sage solution.
+# OPTIONAL: VERIFY EVERY BOOLEAN EQUATION DIRECTLY
 # ============================================================
 
-if "solution" in globals():
+print("\n========================================")
+print("VERIFYING BOOLEAN ANF MODEL")
+print("========================================")
 
-    print("\n========================================")
-    print("COMPARING INDEPENDENT SOLVERS")
-    print("========================================")
+boolean_ok = True
 
+for eq_index, f in enumerate(boolean_eqs):
+    # Create a full assignment dict, treating missing keys as False
+    full_assignment = {}
+    if isinstance(assignment, dict):
+        for var in f.variables():
+            full_assignment[var] = assignment.get(var, False)
+    
+    value = f.subs(full_assignment) if full_assignment else 0
 
-    same = True
+    if value != 0:
+        print("FAIL at Boolean equation", eq_index + 1)
+        print("Residual:", value)
+        boolean_ok = False
+        break
 
-
-    for k in range(v):
-
-        for j in range(o):
-
-            index = k * o + j
-
-
-            # Convert Sage GF(16) solution to nibble.
-            #
-            # Extract polynomial coefficients.
-
-            sage_element = solution[index]
-
-            poly = sage_element.polynomial()
-
-            sage_nibble = 0
-
-
-            for bit in range(4):
-
-                if bit <= poly.degree():
-
-                    if int(poly[bit]) & 1:
-
-                        sage_nibble |= (
-                            1 << bit
-                        )
-
-
-            if (
-                sage_nibble
-                != O_sat_int[k][j]
-            ):
-
-                print(
-                    "Mismatch at O[%d][%d]"
-                    % (
-                        k,
-                        j
-                    )
-                )
-
-                print(
-                    "Sage = %x"
-                    % sage_nibble
-                )
-
-                print(
-                    "SAT  = %x"
-                    % O_sat_int[k][j]
-                )
-
-
-                same = False
-
-                break
-
-
-        if not same:
-
-            break
-
-
-    if same:
-
-        print(
-            "PASS: Sage and CryptoMiniSat recovered "
-            "exactly the same O."
-        )
-
-    else:
-
-        print(
-            "FAIL: Sage and CryptoMiniSat solutions differ."
-        )
+if boolean_ok:
+    print(
+        "PASS: all %d Boolean equations satisfied"
+        % len(boolean_eqs)
+    )
+else:
+    print("FAIL: Boolean model verification failed")
+    sys.exit(1)
 
 
 print("\n========================================")
-print("FINAL INDEPENDENT SAT VERIFICATION")
+print("FINAL SUMMARY")
 print("========================================")
-
-print(
-    "Original text equations parsed :",
-    len(parsed_equations)
-)
-
-print(
-    "Boolean XOR equations          :",
-    len(xor_equations)
-)
-
-print(
-    "Boolean variables              :",
-    NUM_BOOL_VARS
-)
-
-print(
-    "CryptoMiniSat                  : SAT"
-)
-
-print(
-    "Original equations verified    :",
-    verification_ok
-)
-
+print("Original GF(16) equations :", len(gf16_system))
+print("GF(16) variables          :", NUM_GF16_VARS)
+print("Boolean variables         :", B.ngens())
+print("Boolean equations         :", len(boolean_eqs))
+print("Maximum Boolean degree    :", max_bool_degree)
+print("CryptoMiniSat             : SAT")
+print("GF(16) verification       :", verification_ok)
+print("Boolean verification      :", boolean_ok)
 print("========================================")
