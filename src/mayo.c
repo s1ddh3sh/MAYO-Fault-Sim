@@ -334,14 +334,14 @@ int mayo_expand_sk(const mayo_params_t *p, const unsigned char *csk, sk_t *sk) {
   shake256(S, param_pk_seed_bytes + param_O_bytes, seed_sk,
            param_sk_seed_bytes);
   decode(S + param_pk_seed_bytes, O, param_v * param_o);
- for (int k = 0; k < param_v; k++) {
-    //   printf("Row %d:\n", k);
-      for (int i = 0; i < param_o; i++) {
-        if(k != 0) O[k*param_o + i] = 1 & 0xF;
-    //   printf("%x ", O[k * param_o + i] & 0xF);
-    }
-    // printf("\n");
-  }
+  //  for (int k = 0; k < param_v; k++) {
+  //     //   printf("Row %d:\n", k);
+  //       for (int i = 0; i < param_o; i++) {
+  //         if(k != 0) O[k*param_o + i] = 1 & 0xF;
+  //     //   printf("%x ", O[k * param_o + i] & 0xF);
+  //     }
+  //     // printf("\n");
+  //   }
 
 #ifdef ENABLE_CT_TESTING
   VALGRIND_MAKE_MEM_DEFINED(seed_pk, param_pk_seed_bytes);
@@ -597,14 +597,14 @@ int mayo_keypair_compact(const mayo_params_t *p, unsigned char *cpk,
   // o ← Decode_o(s[pk_seed_bytes : pk_seed_bytes + o_bytes])
   decode(S + param_pk_seed_bytes, O, param_v * param_o);
 
-  for (int k = 0; k < param_v; k++) {
-    //   printf("Row %d:\n", k);
-      for (int i = 0; i < param_o; i++) {
-        if(k != 0) O[k*param_o + i] = 1 & 0xF;
-    //   printf("%x ", O[k * param_o + i] & 0xF);
-    }
-    // printf("\n");
-  }
+  //   for (int k = 0; k < param_v; k++) {
+  //     //   printf("Row %d:\n", k);
+  //       for (int i = 0; i < param_o; i++) {
+  //         if(k != 0) O[k*param_o + i] = 1 & 0xF;
+  //     //   printf("%x ", O[k * param_o + i] & 0xF);
+  //     }
+  //     // printf("\n");
+  //   }
 
 #ifdef ENABLE_CT_TESTING
   VALGRIND_MAKE_MEM_DEFINED(seed_pk, param_pk_seed_bytes);

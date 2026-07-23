@@ -135,10 +135,10 @@ static void dump_polynomial_equations(
 
     reconstruct_full_P3(p, epk, P3_full);
 
-    FILE *fp = fopen("../mayo_equations_quadratic.txt", "w");
+    FILE *fp = fopen("../mayo_equations.txt", "w");
 
     if (!fp) {
-        perror("mayo_equations_quadratic.txt");
+        perror("mayo_equations.txt");
         free(P3_full);
         return;
     }
@@ -150,7 +150,7 @@ static void dump_polynomial_equations(
     fprintf(fp, "# unknowns = %d\n", v * o);
     fprintf(fp, "# equations = %d\n",
             m * (o * (o + 1) / 2));
-    fprintf(fp, "# variable x_k_j means O[k][j]\n\n");
+    // fprintf(fp, "# variable x_k_j means O[k][j]\n\n");
 
     int eq = 0;
 
@@ -331,7 +331,7 @@ static void dump_polynomial_equations(
     fclose(fp);
     free(P3_full);
 
-    printf("\nPolynomial system written to mayo_equations_quadratic.txt\n");
+    printf("\nPolynomial system written to mayo_equations.txt\n");
     printf("Unknowns  : %d\n", v * o);
     printf("Equations : %d\n", eq);
 }
