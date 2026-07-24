@@ -12,6 +12,8 @@
 
 from sage.all import *
 from sage.sat.solvers.cryptominisat import CryptoMiniSat
+from solve_pycrypto import solve_with_pycryptosat, check_known_assignment
+
 from collections import Counter
 import pycryptosat
 import re
@@ -876,7 +878,7 @@ def solve_with_sage_sat(boolean_eqs):
     else:
         return solution
 
-
+"""
 def solve_with_pycryptosat(boolean_eqs):
     if not boolean_eqs:
         return {}
@@ -944,7 +946,8 @@ def solve_with_pycryptosat(boolean_eqs):
 
         # pycryptosat add_xor_clause takes 1-based variable IDs and boolean RHS
         # Convert to tuple of explicit integers
-        xor_vars_1based = tuple(int(v) + 1 for v in simplified_vars)
+        xor_vars_1based = tuple(int(v+1) for v in simplified_vars)
+        # print(type(xor_vars_1based[0]))
         solver.add_xor_clause(xor_vars_1based, bool(const_term))
 
     sat, solution = solver.solve()
@@ -956,7 +959,8 @@ def solve_with_pycryptosat(boolean_eqs):
     # Index 0 is dummy/padding in pycryptosat output tuple
     result = {v: bool(solution[var_map[v] + 1]) for v in vars_B}
     return result
-
+"""
+"""
 def solve_with_cryptominisat(boolean_eqs):
     if not boolean_eqs:
         return {}
@@ -1038,6 +1042,7 @@ def solve_with_cryptominisat(boolean_eqs):
         result[v] = bool(val) if val is not None else False
 
     return result
+    """
 used_original_vars = set()
 
 for f in boolean_eqs:
@@ -1067,7 +1072,19 @@ print("RUNNING CRYPTOMINISAT")
 print("========================================")
 
 solve_start = time.time()
-assignment = solve_with_cryptominisat(boolean_eqs)
+assignment = solve_with_pycryptosat(boolean_eqs)
+print("Assignment size:", len(assignment) if assignment else 0)
+print("True count:", sum(1 for v in assignment.values() if v) if assignment else 0)
+
+# Sanity-check: does this assignment actually satisfy the boolean system?
+bad = 0
+for i, f in enumerate(boolean_eqs):
+    val = f.subs({v: assignment.get(v, False) for v in f.variables()})
+    if val != 0:
+        bad += 1
+        if bad <= 3:
+            print("Boolean eq", i+1, "violated:", f)
+print("Violated boolean equations:", bad, "/", len(boolean_eqs))
 solve_time = time.time() - solve_start
 
 if assignment is None:
