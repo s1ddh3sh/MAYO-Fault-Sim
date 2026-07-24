@@ -1,736 +1,908 @@
+
+from sage.all import *
+import re
+import sys
+import time
+
+
 # ============================================================
-# Solve MAYO partial-fault polynomial system
-#
-# Experimental setup:
-#
-#   O[0][j] = unknown / legitimately generated
-#
-#   O[k][j] = 1
-#       for k = 1,...,v-1
-#       for j = 0,...,o-1
-#
-# Original variables:
-#
-#       x_k_j = O[k][j]
-#
-# After substitution, only:
-#
-#       q_j = x_0_j
-#
-# remain unknown.
-#
-# The input mayo_equations.txt may contain equations such as:
-#
-#   F(3)*x_0_0*x_4_2 + F(7)*x_2_1 + F(9) == 0
-#
+# PARAMETERS
 # ============================================================
-
-
-# ------------------------------------------------------------
-# 1. Construct MAYO GF(16)
-#
-# GF(16) = GF(2)[a] / (a^4 + a + 1)
-# ------------------------------------------------------------
-
-B.<z> = PolynomialRing(GF(2))
-
-K.<a> = GF(
-    2^4,
-    modulus=z^4 + z + 1
-)
-
-
-# ------------------------------------------------------------
-# 2. Convert MAYO nibble 0..15 to GF(16)
-# ------------------------------------------------------------
-
-def F(n):
-
-    n = int(n)
-
-    return K(
-        ((n >> 0) & 1)
-        + ((n >> 1) & 1) * a
-        + ((n >> 2) & 1) * a^2
-        + ((n >> 3) & 1) * a^3
-    )
-
-
-# ------------------------------------------------------------
-# 3. MAYO parameters
-# ------------------------------------------------------------
 
 v = 78
 o = 8
 
-nvars = v * o
+NUM_GF16_VARS = v * o
 
-print("v =", v)
-print("o =", o)
-print("Original variables =", nvars)
+INPUT_FILE = (
+    sys.argv[1]
+    if len(sys.argv) > 1
+    else "mayo_equations_quadratic.txt"
+)
+
+BOOLEAN_EQ_FILE = (
+    sys.argv[2]
+    if len(sys.argv) > 2
+    else "boolean_anf_equations_quadratic.txt"
+)
 
 
-# ------------------------------------------------------------
-# 4. Construct original polynomial ring
+# ============================================================
+# GF(16)
 #
-# x_k_j = O[k][j]
-# ------------------------------------------------------------
+# GF(16) = GF(2)[a] / (a^4 + a + 1)
+# ============================================================
 
-names = [
+PR = PolynomialRing(GF(2), "z")
+z = PR.gen()
+
+F = GF(
+    2**4,
+    name="a",
+    modulus=z**4 + z + 1
+)
+
+a = F.gen()
+
+
+# ============================================================
+# GF(16) POLYNOMIAL RING
+#
+# Unknowns are Oil matrix entries:
+#
+#   x_0_0 ... x_77_7
+#
+# ============================================================
+
+gf_names = [
     "x_%d_%d" % (k, j)
     for k in range(v)
     for j in range(o)
 ]
 
 R = PolynomialRing(
-    K,
-    names=names,
-    order='degrevlex'
+    F,
+    names=gf_names
 )
 
-gens = R.gens()
+Rvars = list(R.gens())
 
-X = {}
 
-idx = 0
+gf_var_map = {}
 
 for k in range(v):
-
     for j in range(o):
-
-        X[(k,j)] = gens[idx]
-
-        idx += 1
-
-
-# Environment used to parse equation file
-
-env = {
-    str(g): g
-    for g in gens
-}
-
-env["F"] = F
-
-
-# ------------------------------------------------------------
-# 5. Load original equations
-# ------------------------------------------------------------
-
-equations = []
-
-with open("mayo_equations_quadratic.txt", "r") as fp:
-
-    for line_no, line in enumerate(fp, start=1):
-
-        line = line.strip()
-
-        if not line:
-            continue
-
-        if line.startswith("#"):
-            continue
-
-        if "==" not in line:
-
-            print(
-                "WARNING: skipping malformed line",
-                line_no
-            )
-
-            continue
-
-        lhs, rhs = line.split("==", 1)
-
-        lhs = lhs.strip()
-        rhs = rhs.strip()
-
-        lhs_expr = eval(
-            lhs,
-            {"__builtins__": {}},
-            env
+        gf_var_map[(k, j)] = (
+            Rvars[k * o + j]
         )
 
-        rhs_expr = eval(
-            rhs,
-            {"__builtins__": {}},
-            env
-        )
 
-        f = R(lhs_expr - rhs_expr)
-
-        equations.append(f)
-
-
-print("\nLoaded equations:", len(equations))
-print("Original polynomial variables:", R.ngens())
-
-
-# ------------------------------------------------------------
-# 6. Inspect original degree distribution
-# ------------------------------------------------------------
-
-from collections import Counter
-
-degrees_before = Counter(
-    f.degree()
-    for f in equations
-)
-
-print("\nDegree distribution BEFORE substitution:")
-
-for d in sorted(degrees_before):
-
-    print(
-        "degree",
-        d,
-        ":",
-        degrees_before[d]
-    )
-
-
-# ============================================================
-# 7. Substitute known oil values
-#
-# Experimental assumption:
-#
-#       x_k_j = 1
-#
-# for:
-#
-#       k = 1,...,77
-#
-# Only:
-#
-#       x_0_0,...,x_0_7
-#
-# remain unknown.
-# ============================================================
-
-print("\nSubstituting known oil rows...")
-
-subs = {}
-
-for k in range(1, v):
-
-    for j in range(o):
-
-        subs[X[(k,j)]] = K(1)
-
-
-substituted_equations_R = []
-
-zero_equations = 0
-
-for f in equations:
-
-    g = R(f.subs(subs))
-
-    if g == 0:
-
-        zero_equations += 1
-
-    else:
-
-        substituted_equations_R.append(g)
-
-
-print(
-    "Equations becoming identically zero:",
-    zero_equations
-)
-
-print(
-    "Remaining nonzero equations:",
-    len(substituted_equations_R)
-)
-
-
-# ------------------------------------------------------------
-# 8. Verify which variables remain
-# ------------------------------------------------------------
-
-remaining_vars = set()
-
-for f in substituted_equations_R:
-
-    remaining_vars.update(
-        f.variables()
-    )
-
-
-remaining_vars = sorted(
-    remaining_vars,
-    key=str
-)
-
-
-print("\nVariables actually remaining:")
-
-for var in remaining_vars:
-
-    print(" ", var)
-
-print(
-    "\nNumber of remaining variables:",
-    len(remaining_vars)
-)
-
-
-# We expect exactly:
-
-expected_remaining = set(
-    X[(0,j)]
-    for j in range(o)
-)
-
-unexpected = (
-    set(remaining_vars)
-    - expected_remaining
-)
-
-if unexpected:
-
-    print(
-        "\nERROR: variables other than first-row "
-        "oil variables remain:"
-    )
-
-    for var in unexpected:
-        print(var)
-
-    raise RuntimeError(
-        "Known-variable substitution incomplete"
-    )
-
-
-# ============================================================
-# 9. Create reduced polynomial ring with only 8 variables
-#
-#       q_0,...,q_7
-#
-# where:
-#
-#       q_j = O[0][j]
-# ============================================================
-
-q_names = [
-    "q_%d" % j
-    for j in range(o)
-]
-
-S = PolynomialRing(
-    K,
-    names=q_names,
-    order='degrevlex'
-)
-
-q = S.gens()
-
-
-print("\nReduced variables:")
-
-for j in range(o):
-
-    print(
-        "q_%d = O[0][%d]" % (j, j)
-    )
-
-
-# ------------------------------------------------------------
-# 10. Map R -> S
-#
-# First-row variables map to q_j.
-#
-# All other variables map to 1.
-# ------------------------------------------------------------
-
-images = []
-
-for k in range(v):
-
-    for j in range(o):
-
-        if k == 0:
-
-            images.append(
-                q[j]
-            )
-
-        else:
-
-            images.append(
-                S(1)
-            )
-
-
-phi = R.hom(
-    images,
-    S
-)
-
-
-reduced_equations = []
-
-for f in equations:
-
-    g = phi(f)
-
-    if g != 0:
-
-        reduced_equations.append(g)
-
-
-print(
-    "\nReduced nonzero equations:",
-    len(reduced_equations)
-)
-
-
-# ------------------------------------------------------------
-# 11. Degree distribution after substitution
-# ------------------------------------------------------------
-
-degrees_after = Counter(
-    f.degree()
-    for f in reduced_equations
-)
-
-print(
-    "\nDegree distribution AFTER substitution:"
-)
-
-for d in sorted(degrees_after):
-
-    print(
-        "degree",
-        d,
-        ":",
-        degrees_after[d]
-    )
-
-
-linear_eqs = [
-    f
-    for f in reduced_equations
-    if f.degree() <= 1
-]
-
-quadratic_eqs = [
-    f
-    for f in reduced_equations
-    if f.degree() == 2
-]
-
-
-print(
-    "\nLinear equations:",
-    len(linear_eqs)
-)
-
-print(
-    "Quadratic equations:",
-    len(quadratic_eqs)
-)
-
-
-# ------------------------------------------------------------
-# 12. Print a few reduced equations
-# ------------------------------------------------------------
-
-print("\nFirst 10 reduced equations:")
-
-for i, f in enumerate(
-    reduced_equations[:10]
-):
-
-    print(
-        "[%d] %s == 0"
-        % (i, f)
-    )
-
-
-# ============================================================
-# 13. Build polynomial ideal
-#
-# We solve:
-#
-#       f_1(q) = 0
-#       ...
-#       f_N(q) = 0
-#
-# over GF(16).
-#
-# Since q_j must be GF(16) elements, include:
-#
-#       q_j^16 - q_j = 0
-#
-# These are field equations.
-# ============================================================
-
-field_equations = [
-    qi^16 - qi
-    for qi in q
-]
-
-
-all_solver_equations = (
-    reduced_equations
-    + field_equations
-)
-
-
-print(
-    "\nPolynomial equations:",
-    len(reduced_equations)
-)
-
-print(
-    "Field equations:",
-    len(field_equations)
-)
-
-print(
-    "Total ideal generators:",
-    len(all_solver_equations)
-)
-
-
-# ------------------------------------------------------------
-# 14. Construct ideal
-# ------------------------------------------------------------
-
-I = S.ideal(
-    all_solver_equations
-)
-
-
-# ============================================================
-# 15. Compute Groebner basis
-# ============================================================
-
-print("\n========================================")
-print("Computing Groebner basis...")
+print("========================================")
+print("GF(16) PARTIAL-FAULT EQUATION CONVERTER")
 print("========================================")
 
-G = I.groebner_basis()
-
-
-print(
-    "\nGroebner basis size:",
-    len(G)
-)
-
-
-print("\nGroebner basis:")
-
-for g in G:
-
-    print(g)
+print("Input file       :", INPUT_FILE)
+print("Output file      :", BOOLEAN_EQ_FILE)
+print("GF(16) variables :", NUM_GF16_VARS)
+print("GF(16) field     :", F)
+print("Modulus          :", F.modulus())
 
 
 # ============================================================
-# 16. SAT / UNSAT check
-#
-# If Groebner basis contains 1:
-#
-#       <f1,...,fn> = <1>
-#
-# and therefore no common solution exists.
+# INTEGER/NIBBLE -> GF(16)
 # ============================================================
 
-if S(1) in G:
+def int_to_gf16(c):
 
-    print("\n========================================")
-    print("RESULT: UNSAT")
-    print("========================================")
+    c = int(c) & 0xF
 
-    print(
-        "The polynomial system has no solution "
-        "over GF(16)."
-    )
-
-    quit()
-
-
-print("\n========================================")
-print("RESULT: SAT")
-print("========================================")
-
-print(
-    "The polynomial system has at least "
-    "one solution over GF(16)."
-)
-
-
-# ============================================================
-# 17. Try to obtain variety / solutions
-#
-# Only 8 variables remain, so solving the zero-dimensional
-# ideal may be practical.
-# ============================================================
-
-print("\nAttempting to recover solutions...")
-
-
-try:
-
-    solutions = I.variety(
-        ring=K
-    )
-
-except Exception as e:
-
-    print(
-        "\nDirect variety() failed:"
-    )
-
-    print(e)
-
-    solutions = []
-
-
-print(
-    "\nNumber of solutions found:",
-    len(solutions)
-)
-
-
-# ------------------------------------------------------------
-# 18. Convert GF(16) element back to MAYO nibble
-# ------------------------------------------------------------
-
-def gf16_to_nibble(x):
-
-    x = K(x)
-
-    p = x.polynomial()
-
-    n = 0
+    value = F(0)
 
     for bit in range(4):
 
-        if bit <= p.degree():
+        if (c >> bit) & 1:
+            value += a**bit
 
-            if int(p[bit]) & 1:
-
-                n |= (1 << bit)
-
-    return n
+    return value
 
 
-# ------------------------------------------------------------
-# 19. Print recovered first oil row
-# ------------------------------------------------------------
+# ============================================================
+# PARSING GF(16) EQUATIONS
+#
+# Supports:
+#
+#   F(3)*x_0_0
+#
+#   F(3)*x_0_0*x_1_2
+#
+#   F(3)*x_0_0^2
+#
+#   x_0_0*x_1_2
+#
+#   F(7)
+#
+#   7
+#
+# Equations:
+#
+#   lhs == rhs
+#
+# or
+#
+#   lhs = rhs
+#
+# ============================================================
 
-for sol_no, sol in enumerate(solutions):
+VAR_RE = re.compile(
+    r"^x_(\d+)_(\d+)(?:\^(\d+))?$"
+)
 
-    print(
-        "\n========================================"
-    )
+COEFF_RE = re.compile(
+    r"^F\(\s*(\d+)\s*\)$"
+)
 
-    print(
-        "Solution",
-        sol_no
-    )
+EQ_PREFIX_RE = re.compile(
+    r"^\s*Eq\s+\d+\s*:\s*",
+    re.IGNORECASE
+)
 
-    print(
-        "========================================"
-    )
 
-    recovered = []
+def parse_variable_factor(text):
 
-    for j in range(o):
+    m = VAR_RE.fullmatch(text.strip())
 
-        value = sol[q[j]]
-
-        nibble = gf16_to_nibble(
-            value
+    if not m:
+        raise ValueError(
+            "Invalid variable factor: %r"
+            % text
         )
 
-        recovered.append(
-            nibble
+    k = int(m.group(1))
+    j = int(m.group(2))
+
+    exponent = (
+        int(m.group(3))
+        if m.group(3)
+        else 1
+    )
+
+    if not (0 <= k < v):
+        raise ValueError(
+            "Invalid row index: %d"
+            % k
         )
 
-        print(
-            "O[0][%d] = %s  (0x%x)"
-            % (
-                j,
-                value,
-                nibble
+    if not (0 <= j < o):
+        raise ValueError(
+            "Invalid column index: %d"
+            % j
+        )
+
+    if exponent < 1:
+        raise ValueError(
+            "Invalid exponent: %d"
+            % exponent
+        )
+
+    return (
+        gf_var_map[(k, j)],
+        exponent
+    )
+
+
+def parse_term(term):
+    """
+    Examples:
+
+        F(5)*x_0_0
+
+        F(5)*x_0_0*x_3_2
+
+        F(5)*x_0_0^2
+
+        x_0_0*x_3_2
+
+        F(5)
+
+        5
+
+    Returns a Sage polynomial in R.
+    """
+
+    term = term.strip()
+
+    if not term:
+        return R(0)
+
+    factors = [
+        x.strip()
+        for x in term.split("*")
+        if x.strip()
+    ]
+
+    coeff = F(1)
+
+    variable_factors = []
+
+    for factor in factors:
+
+        # ----------------------------------------
+        # F(c)
+        # ----------------------------------------
+
+        m = COEFF_RE.fullmatch(factor)
+
+        if m:
+
+            coeff *= int_to_gf16(
+                int(m.group(1))
             )
+
+            continue
+
+        # ----------------------------------------
+        # Bare integer
+        # ----------------------------------------
+
+        if factor.isdigit():
+
+            coeff *= int_to_gf16(
+                int(factor)
+            )
+
+            continue
+
+        # ----------------------------------------
+        # Variable
+        # ----------------------------------------
+
+        variable, exponent = (
+            parse_variable_factor(factor)
         )
 
-    print(
-        "\nRecovered first oil row (hex):"
+        variable_factors.append(
+            (variable, exponent)
+        )
+
+    result = R(coeff)
+
+    for variable, exponent in variable_factors:
+
+        result *= variable**exponent
+
+    return result
+
+
+def parse_side(side):
+
+    side = side.strip()
+
+    if not side:
+        return R(0)
+
+    result = R(0)
+
+    for raw_term in side.split("+"):
+
+        term = raw_term.strip()
+
+        if not term:
+            continue
+
+        result += parse_term(term)
+
+    return result
+
+
+def parse_equation(line):
+
+    line = line.strip()
+
+    line = EQ_PREFIX_RE.sub(
+        "",
+        line,
+        count=1
     )
 
-    print(
-        " ".join(
-            "%x" % x
-            for x in recovered
+    if "==" in line:
+
+        lhs_text, rhs_text = (
+            line.split("==", 1)
         )
-    )
+
+    elif "=" in line:
+
+        lhs_text, rhs_text = (
+            line.split("=", 1)
+        )
+
+    else:
+
+        raise ValueError(
+            "Equation has no '=' or '==': %s"
+            % line
+        )
+
+    lhs = parse_side(lhs_text)
+
+    rhs = parse_side(rhs_text)
+
+    # characteristic 2:
+    #
+    # lhs = rhs
+    #
+    # becomes
+    #
+    # lhs + rhs = 0
+
+    return lhs + rhs
 
 
 # ============================================================
-# 20. Verify every recovered solution against ALL original
-#     reduced equations
+# READ GF(16) SYSTEM
 # ============================================================
 
-print(
-    "\n========================================"
-)
-
-print(
-    "Verifying recovered solutions"
-)
-
-print(
-    "========================================"
-)
+gf16_system = []
 
 
-for sol_no, sol in enumerate(solutions):
+with open(INPUT_FILE, "r") as fp:
 
-    valid = True
-
-    for eq_no, f in enumerate(
-        reduced_equations
+    for line_no, line in enumerate(
+        fp,
+        start=1
     ):
 
-        value = f.subs(sol)
+        line = line.strip()
 
-        if value != 0:
+        if (
+            not line
+            or line.startswith("#")
+        ):
+            continue
 
+        try:
+
+            f = parse_equation(line)
+
+        except Exception as e:
+
+            print()
             print(
-                "Solution",
-                sol_no,
-                "fails equation",
-                eq_no
+                "ERROR parsing line",
+                line_no
             )
 
-            print(
-                "Equation:",
-                f
-            )
+            print(line)
 
             print(
-                "Value:",
-                value
+                "Reason:",
+                e
             )
 
-            valid = False
+            raise
 
-            break
+        gf16_system.append(f)
 
-    if valid:
 
-        print(
-            "Solution",
-            sol_no,
-            "PASS: satisfies all",
-            len(reduced_equations),
-            "equations"
+if not gf16_system:
+
+    raise RuntimeError(
+        "No GF(16) equations parsed"
+    )
+
+
+gf_degrees = [
+    f.total_degree()
+    for f in gf16_system
+]
+
+
+print()
+print("Parsed GF(16) equations :", len(gf16_system))
+print("Maximum GF(16) degree   :", max(gf_degrees))
+
+print(
+    "Linear equations        :",
+    sum(d <= 1 for d in gf_degrees)
+)
+
+print(
+    "Quadratic equations     :",
+    sum(d == 2 for d in gf_degrees)
+)
+
+print(
+    "Degree > 2 equations    :",
+    sum(d > 2 for d in gf_degrees)
+)
+
+
+# ============================================================
+# GF(16) -> GF(2) BIT BLAST
+# ============================================================
+
+def gf2m_system_to_gf2(system):
+
+    R_ext = system[0].parent()
+
+    F_ext = R_ext.base_ring()
+
+    m = F_ext.degree()
+
+    vars_ext = list(
+        R_ext.gens()
+    )
+
+    n = len(vars_ext)
+
+    modulus = F_ext.modulus()
+
+    modulus_coeffs = list(
+        modulus.list()
+    )
+
+    # ========================================================
+    # BOOLEAN VARIABLES
+    #
+    # x_i_j ->
+    #
+    #   x_i_j_b0
+    #   x_i_j_b1
+    #   x_i_j_b2
+    #   x_i_j_b3
+    # ========================================================
+
+    bool_names = []
+
+    for var in vars_ext:
+
+        for bit in range(m):
+
+            bool_names.append(
+                "%s_b%d"
+                %
+                (
+                    str(var),
+                    bit
+                )
+            )
+
+    B = BooleanPolynomialRing(
+        n * m,
+        names=bool_names
+    )
+
+    Bvars = list(
+        B.gens()
+    )
+
+    var_bits = {}
+
+    index = 0
+
+    for var in vars_ext:
+
+        var_bits[var] = list(
+            Bvars[
+                index:
+                index + m
+            ]
         )
 
+        index += m
+
+
+    # ========================================================
+    # FIELD ELEMENT -> BASIS BITS
+    # ========================================================
+
+    def field_element_to_bits(c):
+
+        c = F_ext(c)
+
+        poly = c.polynomial()
+
+        coeffs = list(
+            poly.list()
+        )
+
+        coeffs += (
+            [0]
+            *
+            (m - len(coeffs))
+        )
+
+        return [
+
+            B(
+                int(coeffs[i])
+            )
+
+            for i in range(m)
+
+        ]
+
+
+    # ========================================================
+    # SYMBOLIC GF(16) MULTIPLICATION
+    #
+    # This is what allows quadratic terms.
+    #
+    # If:
+    #
+    #   X = x0 + x1*a + x2*a² + x3*a³
+    #
+    #   Y = y0 + y1*a + y2*a² + y3*a³
+    #
+    # then field_mult() creates Boolean products:
+    #
+    #   xi*yj
+    #
+    # and reduces powers of a modulo:
+    #
+    #   a^4 + a + 1
+    # ========================================================
+
+    def field_mult(u_bits, v_bits):
+
+        tmp = [
+
+            B(0)
+
+            for _ in range(
+                2 * m - 1
+            )
+
+        ]
+
+        # polynomial multiplication
+
+        for i in range(m):
+
+            for j in range(m):
+
+                tmp[i + j] += (
+                    u_bits[i]
+                    *
+                    v_bits[j]
+                )
+
+        # modular reduction
+
+        for degree in range(
+            2 * m - 2,
+            m - 1,
+            -1
+        ):
+
+            high = tmp[degree]
+
+            if high == B(0):
+                continue
+
+            for i in range(m):
+
+                if (
+                    int(
+                        modulus_coeffs[i]
+                    )
+                    & 1
+                ):
+
+                    tmp[
+                        degree - m + i
+                    ] += high
+
+            tmp[degree] = B(0)
+
+        return tmp[:m]
+
+
+    def multiply_by_variable_power(
+        term_bits,
+        variable,
+        exponent
+    ):
+
+        result = list(
+            term_bits
+        )
+
+        bits = var_bits[
+            variable
+        ]
+
+        for _ in range(exponent):
+
+            result = field_mult(
+                result,
+                bits
+            )
+
+        return result
+
+
+    # ========================================================
+    # CONVERT SYSTEM
+    # ========================================================
+
+    boolean_eqs = []
+
+    print()
+    print("Bit-blasting GF(16) equations...")
+
+    for eq_index, f in enumerate(system):
+
+        result = [
+
+            B(0)
+
+            for _ in range(m)
+
+        ]
+
+        for mon in f.monomials():
+
+            coeff = F_ext(
+                f.monomial_coefficient(
+                    mon
+                )
+            )
+
+            term_bits = (
+                field_element_to_bits(
+                    coeff
+                )
+            )
+
+            exponent_tuple = tuple(
+                mon.exponents()[0]
+            )
+
+            for (
+                var_index,
+                exponent
+            ) in enumerate(
+                exponent_tuple
+            ):
+
+                exponent = int(exponent)
+
+                if exponent == 0:
+                    continue
+
+                variable = (
+                    vars_ext[var_index]
+                )
+
+                term_bits = (
+                    multiply_by_variable_power(
+                        term_bits,
+                        variable,
+                        exponent
+                    )
+                )
+
+            for bit in range(m):
+
+                result[bit] += (
+                    term_bits[bit]
+                )
+
+        # One GF(16) equation ->
+        # four GF(2) equations.
+
+        for bit in range(m):
+
+            boolean_eqs.append(
+                B(result[bit])
+            )
+
+    return (
+        B,
+        var_bits,
+        boolean_eqs
+    )
+
+
+# ============================================================
+# RUN BIT BLAST
+# ============================================================
+
+t0 = time.time()
+
+B, var_bits, boolean_eqs = (
+    gf2m_system_to_gf2(
+        gf16_system
+    )
+)
+
+elapsed = time.time() - t0
+
+
+bool_degrees = [
+
+    f.degree()
+
+    for f in boolean_eqs
+
+    if f != 0
+
+]
+
+
+max_bool_degree = (
+    max(bool_degrees)
+    if bool_degrees
+    else 0
+)
+
+
+num_linear_bool = sum(
+
+    1
+
+    for f in boolean_eqs
+
+    if f != 0
+    and f.degree() <= 1
+
+)
+
+
+num_quadratic_bool = sum(
+
+    1
+
+    for f in boolean_eqs
+
+    if f != 0
+    and f.degree() == 2
+
+)
+
+
+num_zero_bool = sum(
+
+    1
+
+    for f in boolean_eqs
+
+    if f == 0
+
+)
+
+
+print()
+print("========================================")
+print("GF(16) -> GF(2) CONVERSION SUMMARY")
+print("========================================")
+
+print(
+    "GF(16) equations       :",
+    len(gf16_system)
+)
+
+print(
+    "Boolean equations      :",
+    len(boolean_eqs)
+)
+
+print(
+    "Expected               :",
+    4 * len(gf16_system)
+)
+
+print(
+    "Boolean variables      :",
+    B.ngens()
+)
+
+print(
+    "Linear Boolean eqs     :",
+    num_linear_bool
+)
+
+print(
+    "Quadratic Boolean eqs  :",
+    num_quadratic_bool
+)
+
+print(
+    "Zero Boolean eqs       :",
+    num_zero_bool
+)
+
+print(
+    "Maximum Boolean degree :",
+    max_bool_degree
+)
+
+print(
+    "Bit-blast time         : %.3f s"
+    % elapsed
+)
+
+
+if len(boolean_eqs) != (
+    4 * len(gf16_system)
+):
+
+    raise RuntimeError(
+        "Incorrect Boolean equation count"
+    )
+
+
+if max_bool_degree > 2:
+
+    print()
+    print(
+        "WARNING: Boolean degree > 2."
+    )
+
+    print(
+        "The CNF converter below supports "
+        "arbitrary monomial degree, but this "
+        "is unexpected for the intended "
+        "partial-fault system."
+    )
+
+
+# ============================================================
+# WRITE BOOLEAN ANF
+# ============================================================
+
+with open(
+    BOOLEAN_EQ_FILE,
+    "w"
+) as fp:
+
+    fp.write(
+        "# Boolean ANF equations generated "
+        "from partial-fault GF(16) system\n"
+    )
+
+    fp.write(
+        "# GF(16) modulus: a^4 + a + 1\n"
+    )
+
+    fp.write(
+        "# Each line is polynomial = 0 "
+        "over GF(2)\n"
+    )
+
+    fp.write(
+        "# Original Boolean variables: %d\n"
+        % B.ngens()
+    )
+
+    fp.write(
+        "# Boolean equations: %d\n"
+        % len(boolean_eqs)
+    )
+
+    fp.write(
+        "# Maximum Boolean degree: %d\n\n"
+        % max_bool_degree
+    )
+
+    for i, f in enumerate(
+        boolean_eqs,
+        start=1
+    ):
+
+        fp.write(
+            "Eq %5d: %s = 0\n"
+            %
+            (
+                i,
+                f
+            )
+        )
+
+
+print()
+print(
+    "Written Boolean ANF system:",
+    BOOLEAN_EQ_FILE
+)

@@ -135,7 +135,7 @@ static void dump_polynomial_equations(
 
     reconstruct_full_P3(p, epk, P3_full);
 
-    FILE *fp = fopen("../mayo_equations.txt", "w");
+    FILE *fp = fopen("../mayo_equations_quadratic.txt", "w");
 
     if (!fp) {
         perror("mayo_equations.txt");
