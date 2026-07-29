@@ -17,13 +17,13 @@ NUM_GF16_VARS = v * o
 INPUT_FILE = (
     sys.argv[1]
     if len(sys.argv) > 1
-    else "mayo_equations_quadratic.txt"
+    else "sage/mayo_equations_quadratic.txt"
 )
 
 BOOLEAN_EQ_FILE = (
     sys.argv[2]
     if len(sys.argv) > 2
-    else "boolean_anf_equations_quadratic.txt"
+    else "sage/boolean_anf_equations_quadratic.txt"
 )
 
 
@@ -714,72 +714,88 @@ print("Computing Grobner basis over GF(16)")
 print("========================================")
 
 t0 = time.time()
-
-I = R.ideal(gf16_system)
-
-print("Ideal created.")
-print("Number of generators :", len(gf16_system))
-
-# Change ordering if desired
-# R = PolynomialRing(F, names=gf_names, order='lex')
-
-G = I.groebner_basis()
-
-elapsed = time.time() - t0
+# ============================================================
+# INCREMENTAL GROBNER BASIS
+# ============================================================
 
 print()
-print("Grobner basis computed.")
-print("Basis size :", len(G))
-print("Time       : %.3f s" % elapsed)
+print("========================================")
+print("Incremental Groebner Basis Test")
+print("========================================")
 
-# --------------------------------------------------------
-# Check consistency
-# --------------------------------------------------------
+# Number of equations to try
+sizes = [
+    10,
+    20,
+    50,
+    100,
+    200,
+    400,
+    600,
+    800,
+    1000,
+    1200,
+    1400,
+    1600,
+    1800,
+    2000,
+    2200,
+    2400,
+    2600,
+    len(gf16_system)
+]
 
-if R(1) in G:
+for N in sizes:
+
+    if N > len(gf16_system):
+        continue
+
     print()
-    print("========================================")
-    print("UNSAT")
-    print("Ideal contains 1")
-    print("========================================")
-    sys.exit(0)
+    print("=" * 70)
+    print("Testing first %d equations" % N)
+    print("=" * 70)
 
-print()
-print("========================================")
-print("SAT")
-print("========================================")
+    try:
 
-# --------------------------------------------------------
-# Try solving
-# --------------------------------------------------------
+        t0 = time.time()
 
-print()
-print("Computing solutions...")
+        I = R.ideal(gf16_system[:N])
 
-t1 = time.time()
+        print("Ideal created in %.2f s" %
+              (time.time() - t0))
 
-try:
+        sys.stdout.flush()
 
-    sols = I.variety()
+        t1 = time.time()
 
-    elapsed2 = time.time() - t1
+        G = I.groebner_basis()
 
-    print("Solutions found :", len(sols))
-    print("Enumeration time: %.3f s" % elapsed2)
+        gb_time = time.time() - t1
 
-    if len(sols):
+        print("SUCCESS")
+        print("Groebner time : %.2f s" % gb_time)
+        print("Basis size    :", len(G))
+
+        # Print degree statistics
+        degrees = [g.total_degree() for g in G]
+
+        print("Maximum degree :", max(degrees))
+        print("Average degree : %.2f" %
+              (sum(degrees)/len(degrees)))
+
+        if R(1) in G:
+            print("Ideal contains 1 (UNSAT)")
+        else:
+            print("Ideal does not contain 1")
+
+    except KeyboardInterrupt:
+        raise
+
+    except Exception as e:
 
         print()
-        print("First solution:")
+        print("FAILED at %d equations" % N)
+        print(type(e).__name__)
+        print(e)
 
-        sol = sols[0]
-
-        for v in R.gens():
-
-            print(v, "=", sol[v])
-
-except Exception as e:
-
-    print()
-    print("Could not enumerate solutions.")
-    print("Reason:", e)
+        break
