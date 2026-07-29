@@ -26,11 +26,6 @@ BOOLEAN_EQ_FILE = (
     else "boolean_anf_equations_quadratic.txt"
 )
 
-SUBSTITUTION_FILE = (
-    sys.argv[3]
-    if len(sys.argv) > 3
-    else "mayo_substitutions.txt"
-)
 
 # ============================================================
 # GF(16)
@@ -67,7 +62,8 @@ gf_names = [
 
 R = PolynomialRing(
     F,
-    names=gf_names
+    names=gf_names,
+    order="degrevlex"
 )
 
 Rvars = list(R.gens())
@@ -151,192 +147,6 @@ EQ_PREFIX_RE = re.compile(
     re.IGNORECASE
 )
 
-SUB_RE = re.compile(
-    r"^\s*x_(\d+)_(\d+)\s*=\s*(.*)$"
-)
-
-def parse_gf16_poly(poly_text):
-    """
-    Converts strings like
-
-        a^3+a+1
-        a^2
-        a
-        1
-        0
-
-    into Sage GF(16) elements.
-    """
-
-    poly_text = poly_text.strip()
-
-    if poly_text.startswith("(") and poly_text.endswith(")"):
-        poly_text = poly_text[1:-1]
-
-    poly_text = poly_text.replace(" ", "")
-
-    if poly_text == "":
-        return F(0)
-
-    value = F(0)
-
-    for term in poly_text.split("+"):
-
-        term = term.strip()
-
-        if term == "0":
-            continue
-
-        elif term == "1":
-            value += F(1)
-
-        elif term == "a":
-            value += a
-
-        elif term.startswith("a^"):
-
-            exponent = int(term[2:])
-
-            value += a**exponent
-
-        else:
-
-            raise ValueError(
-                "Unknown GF16 coefficient: %s"
-                % term
-            )
-
-    return value
-
-def split_top_level_plus(expr):
-    """
-    Split an expression at '+' signs that are NOT inside parentheses.
-
-    Example:
-
-        (a^3+a+1)*x_0_0 + (a+1)*x_0_1 + x_0_2
-
-    becomes
-
-        [
-            "(a^3+a+1)*x_0_0",
-            "(a+1)*x_0_1",
-            "x_0_2"
-        ]
-    """
-
-    parts = []
-    depth = 0
-    current = []
-
-    for ch in expr:
-
-        if ch == "(":
-            depth += 1
-            current.append(ch)
-
-        elif ch == ")":
-            depth -= 1
-            current.append(ch)
-
-        elif ch == "+" and depth == 0:
-
-            parts.append("".join(current).strip())
-            current = []
-
-        else:
-            current.append(ch)
-
-    if current:
-        parts.append("".join(current).strip())
-
-    return parts
-
-
-def split_top_level_mul(expr):
-
-    parts = []
-    depth = 0
-    current = []
-
-    for ch in expr:
-
-        if ch == "(":
-            depth += 1
-            current.append(ch)
-
-        elif ch == ")":
-            depth -= 1
-            current.append(ch)
-
-        elif ch == "*" and depth == 0:
-
-            parts.append("".join(current).strip())
-            current = []
-
-        else:
-            current.append(ch)
-
-    if current:
-        parts.append("".join(current).strip())
-
-    return parts
-
-
-def parse_substitution_rhs(text):
-
-    result = R(0)
-
-    for raw_term in split_top_level_plus(text):
-
-        raw_term = raw_term.strip()
-
-        if raw_term == "":
-            continue
-
-        factors = split_top_level_mul(raw_term)
-
-        coeff = F(1)
-        vars_part = []
-
-        for f in factors:
-
-            if f.startswith("("):
-
-                coeff *= parse_gf16_poly(f)
-
-            elif f == "a" or f.startswith("a^"):
-
-                coeff *= parse_gf16_poly(f)
-
-            elif f in ("0","1"):
-
-                coeff *= parse_gf16_poly(f)
-
-            elif f.startswith("x_"):
-
-                var, exponent = parse_variable_factor(f)
-
-                vars_part.append(
-                    (var, exponent)
-                )
-
-            else:
-
-                raise ValueError(
-                    "Cannot parse factor: %s"
-                    % f
-                )
-
-        term = R(coeff)
-
-        for var, exp in vars_part:
-
-            term *= var**exp
-
-        result += term
-
-    return result
 
 def parse_variable_factor(text):
 
@@ -607,76 +417,6 @@ print(
     sum(d > 2 for d in gf_degrees)
 )
 
-substitutions = {}
-
-if SUBSTITUTION_FILE is not None:
-
-    print()
-    print("Reading substitutions...")
-
-    with open(SUBSTITUTION_FILE) as fp:
-
-        for line in fp:
-
-            line = line.strip()
-
-            if line == "" or line.startswith("#"):
-                continue
-
-            m = SUB_RE.match(line)
-
-            if m is None:
-                continue
-
-            row = int(m.group(1))
-            col = int(m.group(2))
-
-            rhs = m.group(3)
-
-            variable = gf_var_map[(row,col)]
-
-            substitutions[variable] = (
-                parse_substitution_rhs(rhs)
-            )
-
-    print(
-        "Loaded",
-        len(substitutions),
-        "substitutions."
-    )
-
-
-if substitutions:
-
-    changed = True
-
-    iteration = 0
-
-    while changed:
-
-        iteration += 1
-
-        changed = False
-
-        new_system = []
-
-        for eq in gf16_system:
-
-            new_eq = R(eq.subs(substitutions))
-
-            if new_eq != eq:
-                changed = True
-
-            new_system.append(new_eq)
-
-        gf16_system = new_system
-
-        print(
-            "Substitution pass",
-            iteration,
-            "changed =",
-            changed
-        )
 
 # ============================================================
 # GF(16) -> GF(2) BIT BLAST
@@ -964,206 +704,82 @@ def gf2m_system_to_gf2(system):
         var_bits,
         boolean_eqs
     )
-
-
 # ============================================================
-# RUN BIT BLAST
+# GROBNER BASIS SOLVER
 # ============================================================
+
+print()
+print("========================================")
+print("Computing Grobner basis over GF(16)")
+print("========================================")
 
 t0 = time.time()
 
-B, var_bits, boolean_eqs = (
-    gf2m_system_to_gf2(
-        gf16_system
-    )
-)
+I = R.ideal(gf16_system)
+
+print("Ideal created.")
+print("Number of generators :", len(gf16_system))
+
+# Change ordering if desired
+# R = PolynomialRing(F, names=gf_names, order='lex')
+
+G = I.groebner_basis()
 
 elapsed = time.time() - t0
 
+print()
+print("Grobner basis computed.")
+print("Basis size :", len(G))
+print("Time       : %.3f s" % elapsed)
 
-bool_degrees = [
+# --------------------------------------------------------
+# Check consistency
+# --------------------------------------------------------
 
-    f.degree()
-
-    for f in boolean_eqs
-
-    if f != 0
-
-]
-
-
-max_bool_degree = (
-    max(bool_degrees)
-    if bool_degrees
-    else 0
-)
-
-
-num_linear_bool = sum(
-
-    1
-
-    for f in boolean_eqs
-
-    if f != 0
-    and f.degree() <= 1
-
-)
-
-
-num_quadratic_bool = sum(
-
-    1
-
-    for f in boolean_eqs
-
-    if f != 0
-    and f.degree() == 2
-
-)
-
-
-num_zero_bool = sum(
-
-    1
-
-    for f in boolean_eqs
-
-    if f == 0
-
-)
-
+if R(1) in G:
+    print()
+    print("========================================")
+    print("UNSAT")
+    print("Ideal contains 1")
+    print("========================================")
+    sys.exit(0)
 
 print()
 print("========================================")
-print("GF(16) -> GF(2) CONVERSION SUMMARY")
+print("SAT")
 print("========================================")
 
-print(
-    "GF(16) equations       :",
-    len(gf16_system)
-)
+# --------------------------------------------------------
+# Try solving
+# --------------------------------------------------------
 
-print(
-    "Boolean equations      :",
-    len(boolean_eqs)
-)
+print()
+print("Computing solutions...")
 
-print(
-    "Expected               :",
-    4 * len(gf16_system)
-)
+t1 = time.time()
 
-print(
-    "Boolean variables      :",
-    B.ngens()
-)
+try:
 
-print(
-    "Linear Boolean eqs     :",
-    num_linear_bool
-)
+    sols = I.variety()
 
-print(
-    "Quadratic Boolean eqs  :",
-    num_quadratic_bool
-)
+    elapsed2 = time.time() - t1
 
-print(
-    "Zero Boolean eqs       :",
-    num_zero_bool
-)
+    print("Solutions found :", len(sols))
+    print("Enumeration time: %.3f s" % elapsed2)
 
-print(
-    "Maximum Boolean degree :",
-    max_bool_degree
-)
+    if len(sols):
 
-print(
-    "Bit-blast time         : %.3f s"
-    % elapsed
-)
+        print()
+        print("First solution:")
 
+        sol = sols[0]
 
-if len(boolean_eqs) != (
-    4 * len(gf16_system)
-):
+        for v in R.gens():
 
-    raise RuntimeError(
-        "Incorrect Boolean equation count"
-    )
+            print(v, "=", sol[v])
 
-
-if max_bool_degree > 2:
+except Exception as e:
 
     print()
-    print(
-        "WARNING: Boolean degree > 2."
-    )
-
-    print(
-        "The CNF converter below supports "
-        "arbitrary monomial degree, but this "
-        "is unexpected for the intended "
-        "partial-fault system."
-    )
-
-
-# ============================================================
-# WRITE BOOLEAN ANF
-# ============================================================
-
-with open(
-    BOOLEAN_EQ_FILE,
-    "w"
-) as fp:
-
-    fp.write(
-        "# Boolean ANF equations generated "
-        "from partial-fault GF(16) system\n"
-    )
-
-    fp.write(
-        "# GF(16) modulus: a^4 + a + 1\n"
-    )
-
-    fp.write(
-        "# Each line is polynomial = 0 "
-        "over GF(2)\n"
-    )
-
-    fp.write(
-        "# Original Boolean variables: %d\n"
-        % B.ngens()
-    )
-
-    fp.write(
-        "# Boolean equations: %d\n"
-        % len(boolean_eqs)
-    )
-
-    fp.write(
-        "# Maximum Boolean degree: %d\n\n"
-        % max_bool_degree
-    )
-
-    for i, f in enumerate(
-        boolean_eqs,
-        start=1
-    ):
-
-        fp.write(
-            "Eq %5d: %s = 0\n"
-            %
-            (
-                i,
-                f
-            )
-        )
-
-
-print()
-print(
-    "Written Boolean ANF system:",
-    BOOLEAN_EQ_FILE
-)
+    print("Could not enumerate solutions.")
+    print("Reason:", e)

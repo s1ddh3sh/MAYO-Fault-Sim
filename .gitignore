@@ -35,3 +35,5 @@ __pycache__
 mayo_equations_r*
 mayo_substitutions*
 solution_quadratic.txt
+boolean_anf_*
+system_quadratic*
