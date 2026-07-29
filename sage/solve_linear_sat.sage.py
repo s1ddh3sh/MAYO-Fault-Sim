@@ -17,7 +17,7 @@ _sage_const_78 = Integer(78); _sage_const_8 = Integer(8); _sage_const_2 = Intege
 
 from sage.all import *
 from sage.sat.solvers.cryptominisat import CryptoMiniSat
-from solve_pycrypto import solve_with_pycryptosat, check_known_assignment
+from sage.solve_pycrypto import solve_with_pycryptosat, check_known_assignment
 
 from collections import Counter
 import pycryptosat
