@@ -335,7 +335,73 @@ remaining_rows = [i for i in range(num_eq) if i not in set(pivot_rows)]
 print("Pivot block size     :", len(pivot_rows))
 print("Remaining (check) eqs:", len(remaining_rows))
 
+# ============================================================
+# SANITY CHECK USING THE TRUE FIRST ROW OF O
+#
+# Substitute the known g values and verify that the resulting
+# linear system in l is satisfiable.
+# ============================================================
 
+print()
+print("========================================")
+print("Checking known first row of O")
+print("========================================")
+
+true_g = [
+    a^2 + 1,
+    a^2 + 1,
+    F(1),
+    a + 1,
+    a^3 + a^2 + 1,
+    a + 1,
+    a^3 + a^2 + a + 1,
+    a^3 + a^2 + a,
+]
+
+# Build numeric matrix B(g)
+Btrue = matrix(F, num_eq, num_l)
+
+Btrue += B0
+
+for aidx in range(o):
+    if true_g[aidx] != 0:
+        Btrue += true_g[aidx] * Ba[aidx]
+
+# Build RHS = -Q(g)
+rhs = []
+
+for q in Q_list:
+    rhs.append(-q(*true_g))
+
+rhs = vector(F, rhs)
+
+print("Matrix dimensions:", Btrue.nrows(), "x", Btrue.ncols())
+
+rankA = Btrue.rank()
+rankAug = Btrue.augment(rhs.column()).rank()
+
+print("rank(A)     =", rankA)
+print("rank([A|b]) =", rankAug)
+
+if rankA != rankAug:
+    print()
+    print("UNSAT")
+    print("Known O row does NOT satisfy the extracted equations.")
+    sys.exit(1)
+
+print()
+print("SAT")
+print("Known O row is consistent.")
+
+# Recover the remaining variables
+sol = Btrue.solve_right(rhs)
+
+print()
+print("Recovered remaining variables:", len(sol))
+
+# Optional: print first few
+for i in range(min(20, len(sol))):
+    print(l_vars[i], "=", sol[i])
 # ============================================================
 # STEP 4: BUILD THE 616x616 SYMBOLIC BLOCK AND SOLVE l(g)
 # ============================================================

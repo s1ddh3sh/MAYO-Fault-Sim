@@ -28,8 +28,8 @@ v = 78
 o = 8
 
 NUM_GF16_VARS = v * o
-INPUT_FILE = "mayo_equations_linear.txt"
-BOOLEAN_EQ_FILE = "boolean_anf_equations.txt"
+INPUT_FILE = "sage/mayo_equations_linear.txt"
+BOOLEAN_EQ_FILE = "sage/boolean_anf_equations.txt"
 
 # GF(16) = GF(2)[a] / (a^4 + a + 1)
 PR.<z> = PolynomialRing(GF(2))
