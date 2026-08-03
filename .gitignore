@@ -37,3 +37,6 @@ mayo_substitutions*
 solution_quadratic.txt
 boolean_anf_*
 system_quadratic*
+
+gdb_fault/obj
+gdb_fault/bash*
