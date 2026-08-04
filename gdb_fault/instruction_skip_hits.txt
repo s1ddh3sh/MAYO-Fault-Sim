@@ -1,12 +1,11 @@
 0x3324  bl 283a <P1_times_O>
-0x284e  str r3, [sp, #8]
-0x285e  movs r0, #5
+0x284e  str r3, [sp, #8]          // param_o=8
+0x285e  movs r0, #5               // m_vec_limbs=5
 0x2860  bl 256c <mul_add_m_upper_triangular_mat_x_mat>
-0x257c  str r3, [r7, #28]
-0x2580  str r3, [r7, #24]
-0x2600  ldr r2, [r7, #24]
-0x2602  ldr r3, [r7, #40] @ 0x28
-0x2604  cmp r2, r3
+0x257c  str r3, [r7, #28]       // store bs_mat_entries_used=0
+0x2580  str r3, [r7, #24]       // store r=0
+
+0x2600  ldr r2, [r7, #24]       // load r
+0x2602  ldr r3, [r7, #40] @ 0x28 // load bs_mat_rows
+0x2604  cmp r2, r3              // cmp r , bs_mat_rows
 0x2606  blt.n 2584 <mul_add_m_upper_triangular_mat_x_mat+0x18>
-
-
