@@ -124,7 +124,7 @@ llc \
 mkdir -p obj/apps obj/src/common
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
@@ -137,7 +137,7 @@ arm-none-eabi-gcc \
     -o obj/apps/mayo_P3_fault.o
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
@@ -150,7 +150,7 @@ arm-none-eabi-gcc \
     -o obj/src/common/aes_c.o
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
@@ -163,7 +163,7 @@ arm-none-eabi-gcc \
     -o obj/src/common/aes128ctr.o
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
@@ -176,7 +176,7 @@ arm-none-eabi-gcc \
     -o obj/src/common/fips202.o
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
@@ -189,7 +189,7 @@ arm-none-eabi-gcc \
     -o obj/src/common/mem.o
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
@@ -202,7 +202,7 @@ arm-none-eabi-gcc \
     -o obj/src/common/randombytes_ctrdrbg.o
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
@@ -215,7 +215,7 @@ arm-none-eabi-gcc \
     -o obj/src/mayo.o
 
 arm-none-eabi-gcc \
-    -g3 -ggdb -mcpu=cortex-m4 \
+    -mcpu=cortex-m4 \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
