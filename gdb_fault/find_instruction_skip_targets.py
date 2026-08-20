@@ -36,6 +36,12 @@ def parse_args() -> argparse.Namespace:
         help="Function name or substring to disassemble (default: P1_times_O)",
     )
     parser.add_argument(
+        "--function-address",
+        default=None,
+        help="Explicit function start address, e.g. 0x1f8c",
+
+    )
+    parser.add_argument(
         "--address",
         default=None,
         help="Optional single instruction address to test, e.g. 0x3324",
@@ -172,6 +178,213 @@ def get_disassembly(elf_path: Path, symbol_name: str) -> List[Instruction]:
     return instructions
 
 
+def get_disassembly_at_address(
+    elf_path: Path,
+    function_address: int
+) -> List[Instruction]:
+    """
+    Disassemble the function starting at an explicitly supplied address.
+
+    This is needed when multiple functions have the same symbol name.
+    For example:
+
+        0x0474  mul_add_m_upper_triangular_mat_x_mat
+        0x1f8c  mul_add_m_upper_triangular_mat_x_mat
+
+    The function at 0x1f8c is selected directly by address.
+    """
+
+    # Disassemble the whole text section. We will select the
+    # function beginning at function_address below.
+    candidates = [
+        ["arm-none-eabi-objdump", "-d", "-w", "-C", str(elf_path)],
+        ["objdump", "-d", "-w", "-C", str(elf_path)],
+        ["objdump", "-d", "-w", "-m", "arm", str(elf_path)],
+    ]
+
+    last_error = None
+
+    for cmd in candidates:
+
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode == 0 and result.stdout.strip():
+            output = result.stdout
+            break
+
+        last_error = result.stdout
+
+    else:
+        raise RuntimeError(
+            f"objdump failed: {last_error}"
+        )
+
+
+    instructions: List[Instruction] = []
+
+    inside_function = False
+
+    for raw_line in output.splitlines():
+
+        line = raw_line.strip()
+
+        if not line:
+            continue
+
+
+        # ------------------------------------------------------
+        # Detect function headers:
+        #
+        # 00001f8c <mul_add_m_upper_triangular_mat_x_mat>:
+        #
+        # ------------------------------------------------------
+        header = re.match(
+            r"^([0-9a-fA-F]+)\s+<([^>]+)>:$",
+            line
+        )
+
+        if header:
+
+            addr = int(
+                header.group(1),
+                16
+            )
+
+            if inside_function:
+                # We reached the next function.
+                if addr != function_address:
+                    break
+
+            if addr == function_address:
+                inside_function = True
+
+            continue
+
+
+        if not inside_function:
+            continue
+
+
+        # ------------------------------------------------------
+        # Parse instruction:
+        #
+        # 2026: dbbd    blt.n 1fa4
+        #
+        # ------------------------------------------------------
+        if not re.search(
+            r"^[0-9a-fA-F]+:\s",
+            line
+        ):
+            continue
+
+
+        try:
+
+            prefix, rest = line.split(
+                ":",
+                1
+            )
+
+            addr = int(
+                prefix.strip(),
+                16
+            )
+
+        except ValueError:
+            continue
+
+
+        remainder = rest.strip()
+
+        if not remainder:
+            continue
+
+
+        parts = remainder.split("\t")
+
+        byte_field = parts[0].strip()
+
+        byte_tokens = byte_field.split()
+
+        instruction_bytes: List[int] = []
+
+        valid_bytes = True
+
+
+        for token in byte_tokens:
+
+            if len(token) % 2 != 0:
+
+                valid_bytes = False
+                break
+
+            try:
+
+                if len(token) == 2:
+
+                    instruction_bytes.append(
+                        int(token, 16)
+                    )
+
+                elif len(token) == 4:
+
+                    instruction_bytes.extend([
+                        int(token[0:2], 16),
+                        int(token[2:4], 16),
+                    ])
+
+                else:
+
+                    for idx in range(
+                        0,
+                        len(token),
+                        2
+                    ):
+
+                        instruction_bytes.append(
+                            int(
+                                token[idx:idx + 2],
+                                16
+                            )
+                        )
+
+            except ValueError:
+
+                valid_bytes = False
+                break
+
+
+        if valid_bytes and instruction_bytes:
+
+            asm = " ".join(
+                part.strip()
+                for part in parts[1:]
+                if part.strip()
+            )
+
+        else:
+
+            asm = remainder
+
+
+        instructions.append(
+            Instruction(
+                addr,
+                instruction_bytes,
+                asm
+            )
+        )
+
+
+    return instructions
+
+
 def build_gdb_script(elf_path: Path, instruction: Instruction, runtime_addr: int, skip_bytes: int) -> str:
     def thumb_addr(addr: int) -> int:
         return addr | 1
@@ -289,9 +502,35 @@ def main() -> None:
 
     if not ELF_PATH.exists():
         raise SystemExit(f"ELF not found: {ELF_PATH}")
+    if args.function_address is not None:
 
-    symbol = find_symbol(ELF_PATH, args.symbol)
-    instructions = get_disassembly(ELF_PATH, symbol)
+        function_address = int(
+            args.function_address,
+            16
+        )
+
+        instructions = get_disassembly_at_address(
+            ELF_PATH,
+            function_address
+        )
+
+        selected_function = (
+            f"0x{function_address:x}"
+        )
+
+    else:
+
+        symbol = find_symbol(
+            ELF_PATH,
+            args.symbol
+        )
+
+        instructions = get_disassembly(
+            ELF_PATH,
+            symbol
+        )
+
+        selected_function = symbol
     if not instructions:
         raise SystemExit("No instructions were parsed from the target function")
 
@@ -301,7 +540,10 @@ def main() -> None:
         if not instructions:
             raise SystemExit(f"No instruction found at address {args.address}")
 
-    print(f"Disassembled {len(instructions)} instructions from {symbol}")
+    print(
+        f"Disassembled {len(instructions)} "
+        f"instructions from {selected_function}"
+    )
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     raw_results: List[Tuple[Instruction, str]] = []
 
