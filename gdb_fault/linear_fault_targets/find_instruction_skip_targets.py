@@ -12,7 +12,7 @@ from typing import List, Tuple
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-ELF_PATH = SCRIPT_DIR / "obj" / "mayo_P3_fault_guess.elf"
+ELF_PATH = SCRIPT_DIR / "obj" / "mayo_P3_fault.elf"
 RESULTS_DIR = SCRIPT_DIR / "bash_script_results"
 RAW_LOG = RESULTS_DIR / "instruction_skip_raw.txt"
 HITS_FILE = RESULTS_DIR / "instruction_skip_hits.txt"
@@ -260,7 +260,7 @@ def run_qemu_and_gdb(elf_path: Path, instruction: Instruction, timeout_s: int) -
             qemu_stdout, _ = qemu_proc.communicate(timeout=5)
 
         combined = (gdb_output + "\n" + qemu_stdout).strip()
-        passed = "OK" in combined
+        passed = "PASS" in combined
         return combined, passed
     finally:
         if qemu_proc.poll() is None:
@@ -280,7 +280,7 @@ def write_results(results: List[Tuple[Instruction, str]], hits_file: Path, raw_l
 
     with hits_file.open("a", encoding="utf-8") as handle:
         for instruction, output in results:
-            if "OK" in output:
+            if "PASS" in output:
                 handle.write(f"0x{instruction.address:x}  {instruction.asm}\n")
 
 
@@ -310,7 +310,7 @@ def main() -> None:
         output, passed = run_qemu_and_gdb(ELF_PATH, instruction, args.timeout)
         raw_results.append((instruction, output))
         if passed:
-            print(f"[HIT] 0x{instruction.address:x}: Fault successful")
+            print(f"[HIT] 0x{instruction.address:x}: PASS detected")
 
     write_results(raw_results, HITS_FILE, RAW_LOG)
     print(f"Raw log: {RAW_LOG}")

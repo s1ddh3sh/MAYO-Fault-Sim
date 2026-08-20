@@ -133,8 +133,8 @@ arm-none-eabi-gcc \
     -DMAYO_VARIANT=MAYO_1 \
     -DMAYO_BUILD_TYPE_OPT \
     -I../include -I../src -I../src/common -I../src/generic \
-    -c mayo_P3_fault.c \
-    -o obj/apps/mayo_P3_fault.o
+    -c mayo_P3_fault_guess.c \
+    -o obj/apps/mayo_P3_fault_guess.o
 
 arm-none-eabi-gcc \
     -g3 -ggdb -mcpu=cortex-m4 \
@@ -239,7 +239,7 @@ arm-none-eabi-ar rcs \
 
 
 arm-none-eabi-gcc \
-    obj/apps/mayo_P3_fault.o \
+    obj/apps/mayo_P3_fault_guess.o \
     obj/common/assert_stub.o \
     -Lobj \
     -lmayo_arm \
@@ -262,7 +262,7 @@ arm-none-eabi-gcc \
     -mthumb \
     -mfloat-abi=hard \
     -mfpu=fpv4-sp-d16 \
-    -o obj/mayo_P3_fault.elf
+    -o obj/mayo_P3_fault_guess.elf
 
 
 
@@ -273,13 +273,13 @@ qemu-system-arm \
     -M mps2-an386 \
     -nographic \
     -semihosting \
-    -kernel obj/mayo_P3_fault.elf
+    -kernel obj/mayo_P3_fault_guess.elf
 
 ---------- For GDB -------
 
 qemu-system-arm \
     -M mps2-an386 \
-    -kernel obj/mayo_P3_fault.elf \
+    -kernel obj/mayo_P3_fault_guess.elf \
     -nographic \
     -semihosting \
     -S \

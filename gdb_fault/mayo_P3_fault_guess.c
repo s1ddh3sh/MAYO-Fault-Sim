@@ -255,6 +255,111 @@ static int try_row0_guess(const mayo_params_t *p, const uint64_t *P1,
   return 1;
 }
 
+// static int solve_linear_system(unsigned char *A, unsigned char *b,
+//                                unsigned char *x, int rows, int cols) {
+//   unsigned char *M = calloc((size_t)rows * (cols + 1), 1);
+
+//   for (int i = 0; i < rows; i++) {
+//     for (int j = 0; j < cols; j++)
+//       M[i * (cols + 1) + j] = A[i * cols + j];
+//     M[i * (cols + 1) + cols] = b[i];
+//   }
+
+//   int rank = 0;
+
+//   for (int col = 0; col < cols && rank < rows; col++) {
+//     int pivot = -1;
+//     for (int row = rank; row < rows; row++) {
+//       if (M[row * (cols + 1) + col] != 0) { pivot = row; break; }
+//     }
+//     if (pivot == -1) continue;
+
+//     if (pivot != rank) {
+//       for (int j = 0; j <= cols; j++) {
+//         unsigned char tmp = M[pivot * (cols + 1) + j];
+//         M[pivot * (cols + 1) + j] = M[rank * (cols + 1) + j];
+//         M[rank * (cols + 1) + j] = tmp;
+//       }
+//     }
+
+//     unsigned char inv = gf_inv(M[rank * (cols + 1) + col]);
+//     for (int j = col; j <= cols; j++)
+//       M[rank * (cols + 1) + j] = gf_mul(M[rank * (cols + 1) + j], inv);
+
+//     for (int row = 0; row < rows; row++) {
+//       if (row != rank && M[row * (cols + 1) + col] != 0) {
+//         unsigned char factor = M[row * (cols + 1) + col];
+//         for (int j = col; j <= cols; j++) {
+//           M[row * (cols + 1) + j] =
+//               gf_add(M[row * (cols + 1) + j],
+//                      gf_mul(factor, M[rank * (cols + 1) + j]));
+//         }
+//       }
+//     }
+//     rank++;
+//   }
+
+//   memset(x, 0, cols);
+//   for (int i = 0; i < rank; i++) {
+//     int lead = -1;
+//     for (int j = 0; j < cols; j++) {
+//       if (M[i * (cols + 1) + j] == 1) { lead = j; break; }
+//     }
+//     if (lead != -1) x[lead] = M[i * (cols + 1) + cols];
+//   }
+
+//   free(M);
+//   return rank;
+// }
+
+// =====================================================================
+// FAULTED compute_P3: bs_mat_rows = 1 forced into the triangular
+// P1*O accumulation, so ONLY row 0 of P2 gets P2_new = P1O + P2_old.
+// Every other row of P2 stays at P2_old.
+//
+// This shadows the real library's compute_P3 (same symbol name),
+// so mayo_keypair(...) genuinely produces a faulty pk when linked
+// against this transla`tion unit.
+// =====================================================================
+
+// static inline void P1_times_O_faulted(const mayo_params_t *p, const uint64_t
+// *P1,
+//                                       const unsigned char *O, uint64_t *acc)
+//                                       {
+// #ifndef ENABLE_PARAMS_DYNAMIC
+//   (void)p;
+// #endif
+//   // FAULT: bs_mat_rows forced to 1 instead of PARAM_v(p).
+//   // The r-loop inside mul_add_m_upper_triangular_mat_x_mat then only
+//   // executes for r = 0, with its c-loop running the FULL correct
+//   // range (c = 0..v-1), so row 0 of acc gets the complete, correct
+//   // P1*O contribution, and no other row is touched at all.
+//   mul_add_m_upper_triangular_mat_x_mat(PARAM_m_vec_limbs(p), P1, O, acc,
+//                                        /*bs_mat_rows=*/1, PARAM_v(p),
+//                                        PARAM_o(p), 1);
+// }
+
+// static inline void compute_P3(const mayo_params_t *p, const uint64_t *P1,
+//                               uint64_t *P2, const unsigned char *O,
+//                               uint64_t *P3) {
+//   const int m_vec_limbs = PARAM_m_vec_limbs(p);
+//   const int param_v = PARAM_v(p);
+//   const int param_o = PARAM_o(p);
+
+//   // compute P1*O + P2, FAULTED: only row 0 updated
+//   P1_times_O_faulted(p, P1, O, P2);
+
+//   // compute P3 = O^t * (P1*O + P2)  -- uses the now partially-faulty P2
+//   mul_add_mat_trans_x_m_mat(m_vec_limbs, O, P2, P3, param_v, param_o,
+//   param_o);
+// }
+
+// =====================================================================
+// Reference (unfaulted) compute_P3, used only for a sanity comparison
+// print at the end -- NOT used to derive the recovery, just to show
+// how far the faulty pk's P3 diverges from what it should have been.
+// =====================================================================
+
 static inline void P1_times_O_correct(const mayo_params_t *p,
                                       const uint64_t *P1,
                                       const unsigned char *O, uint64_t *acc) {
@@ -275,6 +380,7 @@ static inline void compute_P3_correct(const mayo_params_t *p,
   P1_times_O_correct(p, P1, O, P2);
   mul_add_mat_trans_x_m_mat(m_vec_limbs, O, P2, P3, param_v, param_o, param_o);
 }
+
 
 static void attack_row0_quadratic_guess(const mayo_params_t *p,
                                         const uint64_t *epk, const sk_t *esk) {
@@ -318,7 +424,174 @@ static void attack_row0_quadratic_guess(const mayo_params_t *p,
     free(P3_full);
     return;
   }
+
+//   // Step 2: Parallel brute-force search over 16^o candidates
+//   uint64_t total = 1ULL << (4 * o); // 16^o = 2^(4*o)
+//   int found = 0;
+
+//   double start_time = omp_get_wtime();
+
+// #pragma omp parallel
+//   {
+//     // Pre-allocate thread-local buffers outside the iteration loop
+//     unsigned char *A_local = malloc((size_t)equations * unknowns);
+//     unsigned char *b_local = malloc((size_t)equations);
+//     unsigned char *x_local = malloc((size_t)unknowns);
+//     unsigned char *M_local = malloc((size_t)equations * (unknowns + 1));
+//     unsigned char guess_local[O_MAX];
+
+// #pragma omp for schedule(dynamic, 1024)
+//     for (uint64_t gnum = 0; gnum < total; gnum++) {
+//       if (found)
+//         continue; // Early loop exit check
+
+//       uint64_t tmp = gnum;
+//       for (int i = 0; i < o; i++) {
+//         guess_local[i] = tmp & 0xF;
+//         tmp >>= 4;
+//       }
+
+//       if (try_row0_guess(p, P1, P2_old, P3_full, guess_local, A_local, b_local,
+//                          x_local, M_local)) {
+// #pragma omp critical
+//         {
+//           if (!found) {
+//             found = 1;
+//             printf("\nFound consistent guess #%llu on thread %d: ",
+//                    (unsigned long long)gnum, omp_get_thread_num());
+//             for (int i = 0; i < o; i++)
+//               printf("%x ", guess_local[i]);
+//             printf("\n");
+
+//             int mism = 0;
+//             for (int i = 0; i < o; i++)
+//               if (guess_local[i] != (esk->O[0 * o + i] & 0xF))
+//                 mism++;
+//             for (int k = 1; k < v; k++)
+//               for (int col = 0; col < o; col++)
+//                 if ((x_local[(k - 1) * o + col] & 0xF) !=
+//                     (esk->O[k * o + col] & 0xF))
+//                   mism++;
+
+//             if (mism == 0)
+//               printf("SUCCESS: full oil matrix recovered, matches esk->O\n");
+//             else
+//               printf(
+//                   "Consistent but MISMATCHED vs esk->O (%d entries differ)\n",
+//                   mism);
+//           }
+//         }
+//       }
+//     }
+
+//     // Clean up thread-local memory when finished
+//     free(A_local);
+//     free(b_local);
+//     free(x_local);
+//     free(M_local);
+//   }
+
+//   double end_time = omp_get_wtime();
+//   printf("Search completed in %.3f seconds.\n", end_time - start_time);
+
+//   if (!found)
+//     printf("No consistent guess found across entire search space.\n");
+
+//   free(P3_full);
 }
+
+// static void attack_row0_quadratic_guess(const mayo_params_t *p,
+//                                         const uint64_t *epk,
+//                                         const sk_t *esk) {
+//   int v = PARAM_v(p);
+//   int o = PARAM_o(p);
+//   int mvl = PARAM_m_vec_limbs(p);
+
+//   const uint64_t *P1     = epk;                       // public, unaffected
+//   by fault const uint64_t *P2_old = epk + PARAM_P1_limbs(p);    // pristine,
+//   from expand_pk
+
+//   uint64_t *P3_full = calloc((size_t)o * o * mvl, sizeof(uint64_t));
+//   reconstruct_full_P3(p, epk, P3_full); // genuine FAULTY P3, straight from
+//   the real pk
+
+//   int unknowns  = (v - 1) * o;
+//   int equations = PARAM_m(p) * (o * (o + 1) / 2);
+
+//   unsigned char *A = malloc((size_t)equations * unknowns);
+//   unsigned char *b = malloc((size_t)equations);
+//   unsigned char *x = malloc((size_t)unknowns);
+//   unsigned char guess[O_MAX];
+
+//   printf("\n==============================\n");
+//   printf("Approach (|Q|=1, row 0 quadratic): guess-then-linearize\n");
+//   printf("v=%d, o=%d, guess space = 16^%d\n", v, o, o);
+//   printf("==============================\n");
+
+//   // Step 1: sanity check with the TRUE row 0 (proves derivation/indexing).
+//   for (int i = 0; i < o; i++) guess[i] = esk->O[0 * o + i] & 0xF;
+
+//   int ok = try_row0_guess(p, P1, P2_old, P3_full, guess, A, b, x);
+//   printf("Sanity check with true row-0 guess: %s\n",
+//          ok ? "CONSISTENT (derivation OK)" : "INCONSISTENT (bug!)");
+
+//   if (ok) {
+//     int mism = 0;
+//     for (int k = 1; k < v; k++)
+//       for (int col = 0; col < o; col++)
+//         if ((x[(k - 1) * o + col] & 0xF) != (esk->O[k * o + col] & 0xF))
+//           mism++;
+//     printf("Rows 1..%d recovered vs esk->O: %s (%d mismatches)\n",
+//            v - 1, mism == 0 ? "MATCH" : "DIFFER", mism);
+//   }
+
+//   // Step 2: real brute-force search over 16^o candidates for row 0.
+//   // Tractable only for small o -- shown here as the full oracle.
+//   uint64_t total = 1;
+//   for (int t = 0; t < o; t++) total *= 16;
+
+//   printf("\nRunning brute-force guess search (%llu candidates)...\n",
+//          (unsigned long long)total);
+
+//   int found = 0;
+//   for (uint64_t gnum = 0; gnum < total; gnum++) {
+//     uint64_t tmp = gnum;
+//     for (int i = 0; i < o; i++) { guess[i] = tmp & 0xF; tmp >>= 4; }
+
+//     if (try_row0_guess(p, P1, P2_old, P3_full, guess, A, b, x)) {
+//       printf("\nFound consistent guess #%llu: ", (unsigned long long)gnum);
+//       for (int i = 0; i < o; i++) printf("%x ", guess[i]);
+//       printf("\n");
+
+//       int mism = 0;
+//       for (int i = 0; i < o; i++)
+//         if (guess[i] != (esk->O[0 * o + i] & 0xF)) mism++;
+//       for (int k = 1; k < v; k++)
+//         for (int col = 0; col < o; col++)
+//           if ((x[(k - 1) * o + col] & 0xF) != (esk->O[k * o + col] & 0xF))
+//             mism++;
+
+//       if (mism == 0)
+//         printf("SUCCESS: full oil matrix recovered, matches esk->O\n");
+//       else
+//         printf("Consistent but MISMATCHED vs esk->O (%d entries differ)\n",
+//         mism);
+
+//       found = 1;
+//       break; // first consistent guess is (essentially certainly) the right
+//       one
+//     }
+//   }
+//   if (!found) printf("No consistent guess found across entire search
+//   space.\n");
+
+//   free(A); free(b); free(x); free(P3_full);
+// }
+
+// =====================================================================
+// Top-level: run genuinely faulty keygen, then recover.
+// =====================================================================
+
 static void example_fault_row0_only(const mayo_params_t *p) {
   printf("Fault sim: bs_mat_rows forced to 1 (only P2 row 0 = P1O + P2_old)\n");
 
@@ -332,7 +605,15 @@ static void example_fault_row0_only(const mayo_params_t *p) {
   mayo_keypair(p, pk, sk);
 
   mayo_expand_sk(p, sk, esk);
-  mayo_expand_pk(p, pk, epk);
+  mayo_expand_pk(p, pk, epk); // re-derives P1/P2_old fresh from the seed --
+                              // these are correct/public regardless of the
+                              // fault, since only the stored P3 bytes in pk
+                              // reflect the faulted compute_P3 call.
+
+  // dump_hex("Faulty pk", pk, PARAM_cpk_bytes(p));
+
+  // Optional: show how far the faulty P3 diverges from the correct one,
+  // purely informational (uses a private, correct-computation copy of O).
   {
     int o = PARAM_o(p), mvl = PARAM_m_vec_limbs(p);
     int param_P1_limbs = PARAM_P1_limbs(p);

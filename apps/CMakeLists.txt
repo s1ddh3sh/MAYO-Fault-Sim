@@ -70,6 +70,25 @@ else()
 endif()
 
 
+
+
+## Solver for P3_fault_partial
+if (ENABLE_PARAMS_DYNAMIC)
+    add_executable(partial_solver partial_solver.c)
+    target_link_libraries(partial_solver PRIVATE mayo)
+    target_include_directories(partial_solver PRIVATE ../include)
+else()
+    foreach(MVARIANT ${MVARIANT_S})
+        string(TOLOWER ${MVARIANT} MVARIANT_LOWER)
+        add_executable(partial_solver_${MVARIANT_LOWER} partial_solver.c)
+        target_link_libraries(partial_solver_${MVARIANT_LOWER} PRIVATE ${MVARIANT_LOWER})
+        target_include_directories(partial_solver_${MVARIANT_LOWER} PRIVATE ../include ../src/common ../src/generic)
+        target_compile_definitions(partial_solver_${MVARIANT_LOWER} PRIVATE MAYO_VARIANT=${MVARIANT})
+    endforeach()
+endif()
+
+
+
 ## Examples with NIST API
 foreach(MVARIANT ${MVARIANT_S})
     string(TOLOWER ${MVARIANT} MVARIANT_LOWER)
