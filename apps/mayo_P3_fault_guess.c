@@ -165,6 +165,7 @@ static int try_row0_guess(const mayo_params_t *p, const uint64_t *P1,
 
   int unknowns = (v - 1) * o;
   int equations = m * (o * (o + 1) / 2);
+  printf("SOlving %d equations in %d variables : \n", equations, unknowns);
 
   memset(A, 0, (size_t)equations * unknowns);
   memset(b, 0, (size_t)equations);
@@ -240,7 +241,8 @@ static int try_row0_guess(const mayo_params_t *p, const uint64_t *P1,
   }
 
   // Pass workspace M directly to solver
-  solve_linear_system_prealloc(A, b, x, equations, unknowns, M);
+  int rank = solve_linear_system_prealloc(A, b, x, equations, unknowns, M);
+  printf("System rank = %d\n", rank);
 
   for (int e = 0; e < equations; e++) {
     unsigned char acc = 0;
@@ -327,8 +329,6 @@ static void example_fault_row0_only(const mayo_params_t *p) {
   sk_t *esk = calloc(1, sizeof(sk_t));
   uint64_t *epk = calloc(1, sizeof(pk_t));
 
-  // Linked against the faulted compute_P3 above, so this keygen
-  // genuinely produces a faulty pk (only P2 row 0 updated correctly).
   mayo_keypair(p, pk, sk);
 
   mayo_expand_sk(p, sk, esk);
